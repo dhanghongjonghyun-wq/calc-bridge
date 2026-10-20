@@ -8,12 +8,12 @@ app = Flask(__name__)
 @app.route("/", methods=["GET", "POST"])
 def bridge_handler():
     if request.method == "GET":
-        return "ESP32 Calculator Cloud Bridge is Online (Flask + Gemini Flash)", 200
+        return "ESP32 Calculator Cloud Bridge is Online (Render + Gemini Flash)", 200
 
     try:
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
-            return "Server Error: GEMINI_API_KEY environment variable is missing in Vercel settings.", 500
+            return "Server Error: GEMINI_API_KEY environment variable is missing.", 500
 
         client = genai.Client(api_key=api_key)
 
@@ -48,6 +48,5 @@ def bridge_handler():
     except Exception as e:
         return f"Python Execution Error: {str(e)}", 500
 
-# Required for Vercel serverless WSGI routing
 if __name__ == "__main__":
-    app.run()
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
