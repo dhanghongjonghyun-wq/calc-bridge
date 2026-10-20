@@ -19,15 +19,14 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(b"Error: Received empty image payload.")
                 return
 
-            # Initialize Gemini 3.8 Flash model
+            # Initialize Gemini 2.5 Flash model
             generation_config = {
                 "temperature": 0.1,
                 "max_output_tokens": 512,
             }
             
-            # Using Gemini 3.8 Flash for high-speed circuit and math problem-solving
             model = genai.GenerativeModel(
-                model_name='gemini-3.8-flash',
+                model_name='gemini-2.5-flash',
                 generation_config=generation_config
             )
 
@@ -66,4 +65,4 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', 'text/plain')
         self.end_headers()
-        self.wfile.write(b"ESP32 Calculator Cloud Bridge is Online (Gemini 3.8 Flash)")
+        self.wfile.write(b"ESP32 Calculator Cloud Bridge is Online (Gemini 2.5 Flash)")
