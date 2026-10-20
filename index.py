@@ -14,7 +14,6 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(b"Server Error: GEMINI_API_KEY environment variable is missing in Vercel settings.")
                 return
 
-            # Initialize the modern GenAI client
             client = genai.Client(api_key=api_key)
 
             content_length = int(self.headers.get('Content-Length', 0))
@@ -41,14 +40,14 @@ class handler(BaseHTTPRequestHandler):
                 "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
             )
 
-            # Build the image part using the new types definition
             image_part = types.Part.from_bytes(
                 data=image_data,
                 mime_type="image/jpeg",
             )
 
+            # Switched to gemini-2.5-flash for verified stability
             response = client.models.generate_content(
-                model='gemini-3.8-flash',
+                model='gemini-2.5-flash',
                 contents=[prompt, image_part],
                 config=types.GenerateContentConfig(
                     temperature=0.1,
@@ -73,4 +72,4 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', 'text/plain')
         self.end_headers()
-        self.wfile.write(b"ESP32 Calculator Cloud Bridge is Online (Gemini 3.8 Flash)")
+        self.wfile.write(b"ESP32 Calculator Cloud Bridge is Online (Gemini 2.5 Flash)")
