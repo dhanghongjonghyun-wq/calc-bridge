@@ -15,14 +15,22 @@ class handler(BaseHTTPRequestHandler):
 
             genai.configure(api_key=api_key)
 
+            # Safely read the entire incoming image buffer stream
             content_length = int(self.headers.get('Content-Length', 0))
-            image_data = self.rfile.read(content_length)
-
-            if not image_data:
+            if content_length <= 0:
                 self.send_response(400)
                 self.send_header('Content-Type', 'text/plain')
                 self.end_headers()
-                self.wfile.write(b"Error: Received empty image payload.")
+                self.wfile.write(b"Error: Received empty or invalid Content-Length.")
+                return
+
+            image_data = self.rfile.read(content_length)
+
+            if len(image_data) != content_length:
+                self.send_response(400)
+                self.send_header('Content-Type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(b"Error: Incomplete image payload received.")
                 return
 
             generation_config = {
@@ -30,7 +38,6 @@ class handler(BaseHTTPRequestHandler):
                 "max_output_tokens": 512,
             }
             
-            # Updated to match the model requested by the API error message
             model = genai.GenerativeModel(
                 model_name='gemini-3.8-flash',
                 generation_config=generation_config
@@ -43,11 +50,14 @@ class handler(BaseHTTPRequestHandler):
                 "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
             )
 
+            # Pass the image using explicit part dictionaries for maximum SDK compatibility
             response = model.generate_content([
                 prompt,
                 {
-                    "mime_type": "image/jpeg",
-                    "data": image_data
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": image_data
+                    }
                 }
             ])
 
