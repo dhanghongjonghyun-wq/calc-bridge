@@ -27,7 +27,7 @@ def bridge_handler():
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://esp32-calc-bridge.onrender.com", # Optional for OpenRouter rankings
+            "HTTP-Referer": "https://esp32-calc-bridge.onrender.com",
             "X-Title": "ESP32 Telegram Calc"
         }
         
@@ -49,15 +49,15 @@ def bridge_handler():
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
                 image_data_url = f"data:image/jpeg;base64,{base64_image}"
                 
+                # Neutral, technical prompt designed to avoid triggering unnecessary filters
                 prompt = (
-                    "You are a concise engineering calculator. "
-                    "Analyze the circuit diagram or math problem in this image and provide "
-                    "a step-by-step solution. Use plain text ONLY. "
-                    "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
+                    "Solve the math or electric circuit problem shown in this diagram step-by-step. "
+                    "Output the calculation concisely. "
+                    "Use plain text strictly. No markdown, no bold, no LaTeX, no asterisks."
                 )
                 
                 payload = {
-                    "model": "openrouter/free",  # Automatically handles free tier routing with fallback
+                    "model": "nvidia/nemotron-3.5-super-vl:free",  # Direct NVIDIA Vision model ID
                     "max_tokens": 1024,
                     "messages": [
                         {
@@ -78,7 +78,8 @@ def bridge_handler():
                     if "choices" in res_json and len(res_json["choices"]) > 0:
                         solution_text = res_json["choices"][0]["message"].get("content", "").strip()
                     else:
-                        solution_text = f"AI Error: {res_json.get('error', 'Unknown response structure')}"
+                        error_msg = res_json.get('error', {}).get('message', 'Unknown response structure')
+                        solution_text = f"AI Error: {error_msg}"
                 except Exception as e:
                     solution_text = f"Connection error processing image: {str(e)}"
                 
@@ -89,7 +90,7 @@ def bridge_handler():
             text = message["text"]
             
             payload = {
-                "model": "openrouter/free",
+                "model": "nvidia/nemotron-3.5-super-vl:free",
                 "max_tokens": 1024,
                 "messages": [{"role": "user", "content": text}]
             }
@@ -101,7 +102,8 @@ def bridge_handler():
                 if "choices" in res_json and len(res_json["choices"]) > 0:
                     solution_text = res_json["choices"][0]["message"].get("content", "").strip()
                 else:
-                    solution_text = f"AI Error: {res_json.get('error', 'Unknown response structure')}"
+                    error_msg = res_json.get('error', {}).get('message', 'Unknown response structure')
+                    solution_text = f"AI Error: {error_msg}"
             except Exception as e:
                 solution_text = f"Connection error processing text: {str(e)}"
                 
