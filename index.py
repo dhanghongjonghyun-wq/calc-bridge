@@ -49,7 +49,6 @@ def bridge_handler():
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
                 image_data_url = f"data:image/jpeg;base64,{base64_image}"
                 
-                # Neutral, technical prompt designed to avoid triggering unnecessary filters
                 prompt = (
                     "Solve the math or electric circuit problem shown in this diagram step-by-step. "
                     "Output the calculation concisely. "
@@ -57,7 +56,7 @@ def bridge_handler():
                 )
                 
                 payload = {
-                    "model": "nvidia/nemotron-3.5-super-vl:free",  # Direct NVIDIA Vision model ID
+                    "model": "nvidia/nemotron-3.5-super-vl:free",
                     "max_tokens": 1024,
                     "messages": [
                         {
@@ -74,9 +73,13 @@ def bridge_handler():
                     or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=25)
                     res_json = or_response.json()
                     
-                    # Safe extraction guard to block metadata/safety string leaks
+                    # Safely extract content with strict None-checking
                     if "choices" in res_json and len(res_json["choices"]) > 0:
-                        solution_text = res_json["choices"][0]["message"].get("content", "").strip()
+                        msg_content = res_json["choices"][0]["message"].get("content")
+                        if msg_content:
+                            solution_text = msg_content.strip()
+                        else:
+                            solution_text = "AI Error: Response content was empty or filtered."
                     else:
                         error_msg = res_json.get('error', {}).get('message', 'Unknown response structure')
                         solution_text = f"AI Error: {error_msg}"
@@ -100,7 +103,11 @@ def bridge_handler():
                 res_json = or_response.json()
                 
                 if "choices" in res_json and len(res_json["choices"]) > 0:
-                    solution_text = res_json["choices"][0]["message"].get("content", "").strip()
+                    msg_content = res_json["choices"][0]["message"].get("content")
+                    if msg_content:
+                        solution_text = msg_content.strip()
+                    else:
+                        solution_text = "AI Error: Response content was empty or filtered."
                 else:
                     error_msg = res_json.get('error', {}).get('message', 'Unknown response structure')
                     solution_text = f"AI Error: {error_msg}"
