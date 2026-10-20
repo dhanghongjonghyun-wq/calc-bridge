@@ -24,19 +24,28 @@ def bridge_handler():
         message = update["message"]
         chat_id = message["chat"]["id"]
         
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://esp32-calc-bridge.onrender.com", # Optional for OpenRouter rankings
+            "X-Title": "ESP32 Telegram Calc"
+        }
+        
+        solution_text = ""
+        
         # Handle Photo Inputs from Telegram
         if "photo" in message:
             photo = message["photo"][-1]
             file_id = photo["file_id"]
             
             file_info_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getFile?file_id={file_id}"
-            file_res = requests.get(file_info_url).json()
+            file_res = requests.get(file_info_url, timeout=10).json()
             
             if file_res.get("ok"):
                 file_path = file_res["result"]["file_path"]
                 download_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file_path}"
                 
-                image_bytes = requests.get(download_url).content
+                image_bytes = requests.get(download_url, timeout=15).content
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
                 image_data_url = f"data:image/jpeg;base64,{base64_image}"
                 
@@ -47,13 +56,9 @@ def bridge_handler():
                     "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
                 )
                 
-                headers = {
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json"
-                }
                 payload = {
-                    "model": "openrouter/free", 
-                    "max_tokens": 1024,  # Prevents long multi-step solutions from cutting off early
+                    "model": "openrouter/free",  # Automatically handles free tier routing with fallback
+                    "max_tokens": 1024,
                     "messages": [
                         {
                             "role": "user",
@@ -65,52 +70,50 @@ def bridge_handler():
                     ]
                 }
                 
-                or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-                res_json = or_response.json()
-                
                 try:
-                    solution_text = res_json["choices"][0]["message"]["content"].strip()
-                except Exception:
-                    solution_text = f"Error processing image response: {res_json}"
+                    or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=25)
+                    res_json = or_response.json()
+                    
+                    # Safe extraction guard to block metadata/safety string leaks
+                    if "choices" in res_json and len(res_json["choices"]) > 0:
+                        solution_text = res_json["choices"][0]["message"].get("content", "").strip()
+                    else:
+                        solution_text = f"AI Error: {res_json.get('error', 'Unknown response structure')}"
+                except Exception as e:
+                    solution_text = f"Connection error processing image: {str(e)}"
                 
-                # Cache the complete history buffer for the calculator
                 latest_chat_history = f"Q: [Photo Analysis]\n{solution_text}"
-
-                # Send solution back to Telegram
-                send_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-                requests.post(send_url, json={
-                    "chat_id": chat_id,
-                    "text": solution_text
-                })
 
         # Handle Direct Text Inputs from Telegram
         elif "text" in message:
             text = message["text"]
             
-            headers = {
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json"
-            }
             payload = {
                 "model": "openrouter/free",
                 "max_tokens": 1024,
                 "messages": [{"role": "user", "content": text}]
             }
-            or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-            res_json = or_response.json()
             
             try:
-                solution_text = res_json["choices"][0]["message"]["content"].strip()
-            except Exception:
-                solution_text = "No response generated."
+                or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=20)
+                res_json = or_response.json()
+                
+                if "choices" in res_json and len(res_json["choices"]) > 0:
+                    solution_text = res_json["choices"][0]["message"].get("content", "").strip()
+                else:
+                    solution_text = f"AI Error: {res_json.get('error', 'Unknown response structure')}"
+            except Exception as e:
+                solution_text = f"Connection error processing text: {str(e)}"
                 
             latest_chat_history = f"Q: {text}\n{solution_text}"
 
+        # Send clean text back to Telegram if a valid solution was generated
+        if solution_text:
             send_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
             requests.post(send_url, json={
                 "chat_id": chat_id,
                 "text": solution_text
-            })
+            }, timeout=10)
 
     return "OK", 200
 
