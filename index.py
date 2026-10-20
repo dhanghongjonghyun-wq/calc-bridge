@@ -45,9 +45,9 @@ class handler(BaseHTTPRequestHandler):
                 mime_type="image/jpeg",
             )
 
-            # Switched to gemini-2.5-flash for verified stability
+            # Using gemini-flash-latest auto-alias to avoid model version deprecation errors
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-flash-latest',
                 contents=[prompt, image_part],
                 config=types.GenerateContentConfig(
                     temperature=0.1,
@@ -72,4 +72,4 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', 'text/plain')
         self.end_headers()
-        self.wfile.write(b"ESP32 Calculator Cloud Bridge is Online (Gemini 2.5 Flash)")
+        self.wfile.write(b"ESP32 Calculator Cloud Bridge is Online (Gemini Flash Auto-Alias)")
