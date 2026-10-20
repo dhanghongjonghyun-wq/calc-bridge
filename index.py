@@ -1,17 +1,23 @@
 import os
 import base64
 import requests
-from flask import Flask, request
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
+# Store the latest conversation in memory for the calculator to pull
+latest_chat_history = "No messages yet. Send a photo or text via Telegram!"
+
 @app.route("/", methods=["GET", "POST"])
 def bridge_handler():
+    global latest_chat_history
+    
+    # Handle GET request from ESP32 Calculator (Viewing Chat History)
     if request.method == "GET":
-        return "Telegram Calculator Bridge via OpenRouter is Online!", 200
+        return latest_chat_history, 200
 
     update = request.get_json(silent=True)
     if update and "message" in update:
@@ -23,7 +29,6 @@ def bridge_handler():
             photo = message["photo"][-1]
             file_id = photo["file_id"]
             
-            # Get file path from Telegram API
             file_info_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getFile?file_id={file_id}"
             file_res = requests.get(file_info_url).json()
             
@@ -31,7 +36,6 @@ def bridge_handler():
                 file_path = file_res["result"]["file_path"]
                 download_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file_path}"
                 
-                # Download image bytes and encode to base64 data URI
                 image_bytes = requests.get(download_url).content
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
                 image_data_url = f"data:image/jpeg;base64,{base64_image}"
@@ -43,7 +47,6 @@ def bridge_handler():
                     "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
                 )
                 
-                # Call OpenRouter API
                 headers = {
                     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                     "Content-Type": "application/json"
@@ -69,6 +72,9 @@ def bridge_handler():
                 except Exception:
                     solution_text = f"Error processing image response: {res_json}"
                 
+                # Update history buffer
+                latest_chat_history = f"Q: [Photo Analysis]\nA: {solution_text}"
+
                 # Send solution back to Telegram
                 send_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
                 requests.post(send_url, json={
@@ -76,9 +82,11 @@ def bridge_handler():
                     "text": solution_text
                 })
 
-        # Handle Direct Text Inputs
+        # Handle Direct Text Inputs (from Telegram or ESP32)
         elif "text" in message:
             text = message["text"]
+            
+            # If text came from Telegram, query OpenRouter
             headers = {
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json"
@@ -95,6 +103,8 @@ def bridge_handler():
             except Exception:
                 solution_text = "No response generated."
                 
+            latest_chat_history = f"Q: {text}\nA: {solution_text}"
+
             send_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
             requests.post(send_url, json={
                 "chat_id": chat_id,
