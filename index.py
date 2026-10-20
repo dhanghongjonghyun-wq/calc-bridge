@@ -56,7 +56,7 @@ def bridge_handler():
                 )
                 
                 payload = {
-                    "model": "minimax/minimax-m3.1-flash:free",  # Updated to MiniMax M3.1 Flash free model
+                    "model": "deepseek/deepseek-v4.1-flash-1017",  # Updated to DeepSeek V4.1 Flash
                     "max_tokens": 1024,
                     "messages": [
                         {
@@ -92,7 +92,7 @@ def bridge_handler():
             text = message["text"]
             
             payload = {
-                "model": "minimax/minimax-m3.1-flash:free",
+                "model": "deepseek/deepseek-v4.1-flash-1017",
                 "max_tokens": 1024,
                 "messages": [{"role": "user", "content": text}]
             }
@@ -106,7 +106,7 @@ def bridge_handler():
                     if msg_content:
                         solution_text = msg_content.strip()
                     else:
-                        solution_text = "AI Error: Response content was empty or filtered."
+                        solution_text = "AI Error: Response content was empty."
                 else:
                     error_msg = res_json.get('error', {}).get('message', 'Unknown response structure')
                     solution_text = f"AI Error: {error_msg}"
@@ -127,4 +127,3 @@ def bridge_handler():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-                    
