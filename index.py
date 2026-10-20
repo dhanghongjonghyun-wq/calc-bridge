@@ -56,7 +56,7 @@ def bridge_handler():
                 )
                 
                 payload = {
-                    "model": "thinkingmachines/inkling-small:free",  # Highly reliable free multimodal model
+                    "model": "qwen/qwen3.8-27b:free",  # Fully compatible free multimodal vision model
                     "max_tokens": 1024,
                     "messages": [
                         {
@@ -92,7 +92,7 @@ def bridge_handler():
             text = message["text"]
             
             payload = {
-                "model": "thinkingmachines/inkling-small:free",
+                "model": "qwen/qwen3.8-27b:free",
                 "max_tokens": 1024,
                 "messages": [{"role": "user", "content": text}]
             }
@@ -127,3 +127,4 @@ def bridge_handler():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    
