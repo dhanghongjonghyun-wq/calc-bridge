@@ -56,7 +56,7 @@ def bridge_handler():
                 )
                 
                 payload = {
-                    "model": "google/gemini-flash-1.5:free",  # Standard free tier Gemini Flash model
+                    "model": "minimax/minimax-m3.1-flash:free",  # Updated to MiniMax M3.1 Flash free model
                     "max_tokens": 1024,
                     "messages": [
                         {
@@ -92,7 +92,7 @@ def bridge_handler():
             text = message["text"]
             
             payload = {
-                "model": "google/gemini-flash-1.5:free",
+                "model": "minimax/minimax-m3.1-flash:free",
                 "max_tokens": 1024,
                 "messages": [{"role": "user", "content": text}]
             }
@@ -127,4 +127,4 @@ def bridge_handler():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-            
+    
