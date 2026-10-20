@@ -56,7 +56,7 @@ def bridge_handler():
                 )
                 
                 payload = {
-                    "model": "nvidia/nemotron-3.5-super-vl:free",
+                    "model": "google/gemma-4-26b-a4b-it:free",  # Switched to Google Gemma Vision model
                     "max_tokens": 1024,
                     "messages": [
                         {
@@ -73,7 +73,6 @@ def bridge_handler():
                     or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=25)
                     res_json = or_response.json()
                     
-                    # Safely extract content with strict None-checking
                     if "choices" in res_json and len(res_json["choices"]) > 0:
                         msg_content = res_json["choices"][0]["message"].get("content")
                         if msg_content:
@@ -93,7 +92,7 @@ def bridge_handler():
             text = message["text"]
             
             payload = {
-                "model": "nvidia/nemotron-3.5-super-vl:free",
+                "model": "google/gemma-4-26b-a4b-it:free",
                 "max_tokens": 1024,
                 "messages": [{"role": "user", "content": text}]
             }
