@@ -43,13 +43,13 @@ def bridge_handler():
                     "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
                 )
                 
-                # Call OpenRouter API using free multi-modal router
+                # Call OpenRouter API
                 headers = {
                     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                     "Content-Type": "application/json"
                 }
                 payload = {
-                    "model": "openrouter/free", # Automatically routes to available free vision models
+                    "model": "openrouter/free", 
                     "messages": [
                         {
                             "role": "user",
