@@ -15,7 +15,6 @@ class handler(BaseHTTPRequestHandler):
 
             genai.configure(api_key=api_key)
 
-            # Safely read the entire incoming image buffer stream
             content_length = int(self.headers.get('Content-Length', 0))
             if content_length <= 0:
                 self.send_response(400)
@@ -50,7 +49,6 @@ class handler(BaseHTTPRequestHandler):
                 "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
             )
 
-            # Pass the image using explicit part dictionaries for maximum SDK compatibility
             response = model.generate_content([
                 prompt,
                 {
