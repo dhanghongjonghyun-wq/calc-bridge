@@ -56,7 +56,7 @@ def bridge_handler():
                 )
                 
                 payload = {
-                    "model": "google/gemma-4-26b-a4b-it:free",  # Switched to Google Gemma Vision model
+                    "model": "thinkingmachines/inkling-small:free",  # Highly reliable free multimodal model
                     "max_tokens": 1024,
                     "messages": [
                         {
@@ -92,7 +92,7 @@ def bridge_handler():
             text = message["text"]
             
             payload = {
-                "model": "google/gemma-4-26b-a4b-it:free",
+                "model": "thinkingmachines/inkling-small:free",
                 "max_tokens": 1024,
                 "messages": [{"role": "user", "content": text}]
             }
