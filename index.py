@@ -1,5 +1,4 @@
 import os
-import io
 from flask import Flask, request, Response
 from google import genai
 from google.genai import types
@@ -29,7 +28,6 @@ def bridge_handler():
             "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
         )
 
-        # Wrap image data securely into a BytesIO stream object for the Gemini API
         image_part = types.Part.from_bytes(
             data=image_data,
             mime_type="image/jpeg",
@@ -44,10 +42,17 @@ def bridge_handler():
             )
         )
 
-        solution_text = response.text.strip() if response and response.text else "No solution generated."
+        print("DEBUG GEMINI RESPONSE:", response)
+
+        if response and response.text:
+            solution_text = response.text.strip()
+        else:
+            solution_text = "Model returned empty response."
+
         return Response(solution_text, mimetype="text/plain; charset=utf-8"), 200
 
     except Exception as e:
+        print("DEBUG EXCEPTION:", str(e))
         return f"Python Execution Error: {str(e)}", 500
 
 if __name__ == "__main__":
