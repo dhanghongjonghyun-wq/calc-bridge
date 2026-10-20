@@ -1,4 +1,5 @@
 import os
+import io
 from flask import Flask, request, Response
 from google import genai
 from google.genai import types
@@ -28,6 +29,7 @@ def bridge_handler():
             "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
         )
 
+        # Wrap image data securely into a BytesIO stream object for the Gemini API
         image_part = types.Part.from_bytes(
             data=image_data,
             mime_type="image/jpeg",
