@@ -1,74 +1,53 @@
 import os
+from flask import Flask, request, Response
 from google import genai
 from google.genai import types
-from http.server import BaseHTTPRequestHandler
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        try:
-            api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                self.send_response(500)
-                self.send_header('Content-Type', 'text/plain')
-                self.end_headers()
-                self.wfile.write(b"Server Error: GEMINI_API_KEY environment variable is missing in Vercel settings.")
-                return
+app = Flask(__name__)
 
-            client = genai.Client(api_key=api_key)
+@app.route("/", methods=["GET", "POST"])
+def bridge_handler():
+    if request.method == "GET":
+        return "ESP32 Calculator Cloud Bridge is Online (Flask + Gemini Flash)", 200
 
-            content_length = int(self.headers.get('Content-Length', 0))
-            if content_length <= 0:
-                self.send_response(400)
-                self.send_header('Content-Type', 'text/plain')
-                self.end_headers()
-                self.wfile.write(b"Error: Received empty or invalid Content-Length.")
-                return
+    try:
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            return "Server Error: GEMINI_API_KEY environment variable is missing in Vercel settings.", 500
 
-            image_data = self.rfile.read(content_length)
+        client = genai.Client(api_key=api_key)
 
-            if not image_data or len(image_data) < 1000:
-                self.send_response(400)
-                self.send_header('Content-Type', 'text/plain')
-                self.end_headers()
-                self.wfile.write(b"Error: Received empty or corrupted image buffer from ESP32.")
-                return
+        image_data = request.data
+        if not image_data or len(image_data) < 1000:
+            return "Error: Received empty or corrupted image buffer from ESP32.", 400
 
-            prompt = (
-                "You are a concise engineering calculator. "
-                "Analyze the circuit diagram or math problem in this image and provide "
-                "a step-by-step solution. Use plain text ONLY. "
-                "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
+        prompt = (
+            "You are a concise engineering calculator. "
+            "Analyze the circuit diagram or math problem in this image and provide "
+            "a step-by-step solution. Use plain text ONLY. "
+            "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
+        )
+
+        image_part = types.Part.from_bytes(
+            data=image_data,
+            mime_type="image/jpeg",
+        )
+
+        response = client.models.generate_content(
+            model='gemini-flash-latest',
+            contents=[prompt, image_part],
+            config=types.GenerateContentConfig(
+                temperature=0.1,
+                max_output_tokens=512,
             )
+        )
 
-            image_part = types.Part.from_bytes(
-                data=image_data,
-                mime_type="image/jpeg",
-            )
+        solution_text = response.text.strip() if response and response.text else "No solution generated."
+        return Response(solution_text, mimetype="text/plain; charset=utf-8"), 200
 
-            response = client.models.generate_content(
-                model='gemini-flash-latest',
-                contents=[prompt, image_part],
-                config=types.GenerateContentConfig(
-                    temperature=0.1,
-                    max_output_tokens=512,
-                )
-            )
+    except Exception as e:
+        return f"Python Execution Error: {str(e)}", 500
 
-            solution_text = response.text.strip() if response and response.text else "No solution generated."
-
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/plain; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(solution_text.encode('utf-8'))
-
-        except Exception as e:
-            self.send_response(500)
-            self.send_header('Content-Type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(f"Python Execution Error: {str(e)}".encode('utf-8'))
-
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/plain')
-        self.end_headers()
-        self.wfile.write(b"ESP32 Calculator Cloud Bridge is Online (Gemini Flash Auto-Alias)")
+# Required for Vercel serverless WSGI routing
+if __name__ == "__main__":
+    app.run()
