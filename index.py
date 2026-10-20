@@ -26,11 +26,11 @@ class handler(BaseHTTPRequestHandler):
 
             image_data = self.rfile.read(content_length)
 
-            if len(image_data) != content_length:
+            if not image_data or len(image_data) < 1000:
                 self.send_response(400)
                 self.send_header('Content-Type', 'text/plain')
                 self.end_headers()
-                self.wfile.write(b"Error: Incomplete image payload received.")
+                self.wfile.write(b"Error: Received empty or corrupted image buffer from ESP32.")
                 return
 
             prompt = (
@@ -45,7 +45,6 @@ class handler(BaseHTTPRequestHandler):
                 mime_type="image/jpeg",
             )
 
-            # Using gemini-flash-latest auto-alias to avoid model version deprecation errors
             response = client.models.generate_content(
                 model='gemini-flash-latest',
                 contents=[prompt, image_part],
