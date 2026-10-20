@@ -1,5 +1,6 @@
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from http.server import BaseHTTPRequestHandler
 
 class handler(BaseHTTPRequestHandler):
@@ -13,7 +14,8 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(b"Server Error: GEMINI_API_KEY environment variable is missing in Vercel settings.")
                 return
 
-            genai.configure(api_key=api_key)
+            # Initialize the modern GenAI client
+            client = genai.Client(api_key=api_key)
 
             content_length = int(self.headers.get('Content-Length', 0))
             if content_length <= 0:
@@ -32,16 +34,6 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(b"Error: Incomplete image payload received.")
                 return
 
-            generation_config = {
-                "temperature": 0.1,
-                "max_output_tokens": 512,
-            }
-            
-            model = genai.GenerativeModel(
-                model_name='gemini-3.8-flash',
-                generation_config=generation_config
-            )
-
             prompt = (
                 "You are a concise engineering calculator. "
                 "Analyze the circuit diagram or math problem in this image and provide "
@@ -49,15 +41,20 @@ class handler(BaseHTTPRequestHandler):
                 "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
             )
 
-            response = model.generate_content([
-                prompt,
-                {
-                    "inline_data": {
-                        "mime_type": "image/jpeg",
-                        "data": image_data
-                    }
-                }
-            ])
+            # Build the image part using the new types definition
+            image_part = types.Part.from_bytes(
+                data=image_data,
+                mime_type="image/jpeg",
+            )
+
+            response = client.models.generate_content(
+                model='gemini-3.8-flash',
+                contents=[prompt, image_part],
+                config=types.GenerateContentConfig(
+                    temperature=0.1,
+                    max_output_tokens=512,
+                )
+            )
 
             solution_text = response.text.strip() if response and response.text else "No solution generated."
 
