@@ -2,13 +2,19 @@ import os
 import google.generativeai as genai
 from http.server import BaseHTTPRequestHandler
 
-# Configure your Gemini API key from environment variables
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
-            # Read the raw JPEG bytes sent directly from the ESP32-S3
+            api_key = os.environ.get("GEMINI_API_KEY")
+            if not api_key:
+                self.send_response(500)
+                self.send_header('Content-Type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(b"Server Error: GEMINI_API_KEY environment variable is missing in Vercel settings.")
+                return
+
+            genai.configure(api_key=api_key)
+
             content_length = int(self.headers.get('Content-Length', 0))
             image_data = self.rfile.read(content_length)
 
@@ -19,7 +25,6 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(b"Error: Received empty image payload.")
                 return
 
-            # Initialize Gemini 2.5 Flash model
             generation_config = {
                 "temperature": 0.1,
                 "max_output_tokens": 512,
@@ -30,7 +35,6 @@ class handler(BaseHTTPRequestHandler):
                 generation_config=generation_config
             )
 
-            # Pass the raw image bytes alongside a clear engineering prompt
             prompt = (
                 "You are a concise engineering calculator. "
                 "Analyze the circuit diagram or math problem in this image and provide "
@@ -38,7 +42,6 @@ class handler(BaseHTTPRequestHandler):
                 "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
             )
 
-            # Send the image payload to Gemini
             response = model.generate_content([
                 prompt,
                 {
@@ -49,7 +52,6 @@ class handler(BaseHTTPRequestHandler):
 
             solution_text = response.text.strip() if response and response.text else "No solution generated."
 
-            # Send the plain-text response back to the ESP32-S3 display
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')
             self.end_headers()
@@ -59,7 +61,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(500)
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
-            self.wfile.write(f"Google API Error: {str(e)}".encode('utf-8'))
+            self.wfile.write(f"Python Execution Error: {str(e)}".encode('utf-8'))
 
     def do_GET(self):
         self.send_response(200)
