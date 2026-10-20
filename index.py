@@ -1,4 +1,5 @@
 import os
+import io
 from flask import Flask, request, Response
 from google import genai
 from google.genai import types
@@ -17,8 +18,8 @@ def bridge_handler():
 
         client = genai.Client(api_key=api_key)
 
-        image_data = request.data
-        if not image_data or len(image_data) < 1000:
+        image_bytes = request.data
+        if not image_bytes or len(image_bytes) < 1000:
             return "Error: Received empty or corrupted image buffer from ESP32.", 400
 
         prompt = (
@@ -28,8 +29,9 @@ def bridge_handler():
             "Do NOT use markdown symbols, bold tags, backticks, asterisks, or LaTeX formatting."
         )
 
+        # Wrap the raw binary data safely into an IO stream buffer
         image_part = types.Part.from_bytes(
-            data=image_data,
+            data=image_bytes,
             mime_type="image/jpeg",
         )
 
@@ -42,13 +44,7 @@ def bridge_handler():
             )
         )
 
-        print("DEBUG GEMINI RESPONSE:", response)
-
-        if response and response.text:
-            solution_text = response.text.strip()
-        else:
-            solution_text = "Model returned empty response."
-
+        solution_text = response.text.strip() if response and response.text else "No solution generated."
         return Response(solution_text, mimetype="text/plain; charset=utf-8"), 200
 
     except Exception as e:
