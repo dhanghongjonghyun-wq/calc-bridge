@@ -30,8 +30,9 @@ class handler(BaseHTTPRequestHandler):
                 "max_output_tokens": 512,
             }
             
+            # Updated to match the model requested by the API error message
             model = genai.GenerativeModel(
-                model_name='gemini-2.5-flash',
+                model_name='gemini-3.8-flash',
                 generation_config=generation_config
             )
 
@@ -67,4 +68,4 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', 'text/plain')
         self.end_headers()
-        self.wfile.write(b"ESP32 Calculator Cloud Bridge is Online (Gemini 2.5 Flash)")
+        self.wfile.write(b"ESP32 Calculator Cloud Bridge is Online (Gemini 3.8 Flash)")
