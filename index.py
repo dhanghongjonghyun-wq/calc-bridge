@@ -12,15 +12,10 @@ latest_chat_history = "Ready"
 def clean_for_display(text):
     if not text:
         return "No text returned"
-    
     text = text.replace("•", "-").replace("—", "-").replace("–", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
-    text = text.replace("≈", "=")
-    text = text.replace("**", "").replace("*", "")
-    
-    cleaned = re.sub(r'[^\x00-\x7F]+', ' ', text)
-    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-    return cleaned
+    cleaned = re.sub(r'[^\x00-\x7F]+', '?', text)
+    return cleaned.strip()
 
 @app.route("/", methods=["GET", "POST"])
 def bridge_handler():
@@ -32,23 +27,17 @@ def bridge_handler():
     if request.method == "POST":
         try:
             content_type = request.headers.get("Content-Type", "")
-            backup_models = [
-                "google/gemma-4-31b-it:free",
-                "openrouter/free"
-            ]
-
-            formatting_rule = " STRICT REQUIREMENT: Plain text only. No markdown, asterisks, bold tags, or approx symbols."
-
+            
             if "text/plain" in content_type:
                 user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
                     return "No expression", 200
                 
-                prompt = f"Solve concisely: {user_expression}. Short steps and final answer only.{formatting_rule}"
+                prompt = f"Calculate: {user_expression}. Step by step."
                 
                 payload = {
-                    "models": backup_models,
-                    "max_tokens": 200,  # Tightened to prevent length cutoffs
+                    "model": "openrouter/free",
+                    "max_tokens": 1024,
                     "messages": [{"role": "user", "content": prompt}]
                 }
             else:
@@ -57,11 +46,11 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = f"Analyze this image and provide a short numerical solution.{formatting_rule}"
+                prompt = "Analyze this image and solve step by step."
                 
                 payload = {
-                    "models": backup_models, 
-                    "max_tokens": 200,
+                    "model": "openrouter/free", 
+                    "max_tokens": 1024,
                     "messages": [
                         {
                             "role": "user",
@@ -79,30 +68,21 @@ def bridge_handler():
             }
 
             or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=15)
-            
             res_json = or_response.json()
+            
             if "error" in res_json:
                 return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
 
             choices = res_json.get("choices", [])
             if choices:
-                choice = choices[0]
-                message = choice.get("message", {})
-                content = message.get("content")
-                
-                if not content:
-                    content = choice.get("text", "")
-
-                # Display whatever content came back, even if finish_reason was length
-                if content and len(content.strip()) > 0:
+                content = choices[0].get("message", {}).get("content")
+                if content:
                     solution_text = clean_for_display(content)
                 else:
-                    solution_text = f"Model Blank (Reason: {choice.get('finish_reason', 'unknown')})"
+                    solution_text = f"Model Blank (Reason: {choices[0].get('finish_reason', 'unknown')})"
             else:
                 solution_text = "API Error: No choices"
                 
-        except requests.exceptions.Timeout:
-            solution_text = "Error: AI response timeout"
         except Exception as e:
             solution_text = f"Error: {str(e)}"
         
