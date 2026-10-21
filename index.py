@@ -29,28 +29,32 @@ def bridge_handler():
             content_type = request.headers.get("Content-Type", "")
             
             if "text/plain" in content_type:
-                user_expression = request.data.decode("utf-8") if request.data else ""
+                try:
+                    user_expression = request.data.decode("utf-8") if request.data else ""
+                except Exception:
+                    user_expression = str(request.data)
+                    
                 if not user_expression:
-                    return "No expression", 400
+                    return "No expression", 200
                 
                 prompt = f"Calculate: {user_expression}. Give short step-by-step numbers only. Plain text."
                 
                 payload = {
                     "model": "openrouter/free",
-                    "max_tokens": 2048,  # Increased token limit
+                    "max_tokens": 2048,
                     "messages": [{"role": "user", "content": prompt}]
                 }
             else:
                 image_bytes = request.data
                 if not image_bytes:
-                    return "No image", 400
+                    return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
                 prompt = "Analyze this image and provide step-by-step numerical solution in plain text."
                 
                 payload = {
                     "model": "openrouter/free", 
-                    "max_tokens": 2048,  # Increased token limit
+                    "max_tokens": 2048,
                     "messages": [
                         {
                             "role": "user",
@@ -68,7 +72,11 @@ def bridge_handler():
             }
 
             or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
-            res_json = or_response.json()
+            
+            try:
+                res_json = or_response.json()
+            except Exception:
+                return f"API Error: Invalid JSON (HTTP {or_response.status_code})", 200
             
             if "error" in res_json:
                 return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
@@ -88,7 +96,7 @@ def bridge_handler():
                 solution_text = "API Error: No choices in response"
                 
         except Exception as e:
-            solution_text = f"Error: {str(e)}"
+            solution_text = f"Bridge Error: {str(e)}"
         
         latest_chat_history = solution_text
         return solution_text, 200
