@@ -8,16 +8,15 @@ from flask import Flask, request
 app = Flask(__name__)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 latest_chat_history = "Ready"
 
 def evaluate_math_expression(expr):
     """Safely evaluate standard math expressions in Python, supporting degrees for trig and ^ for exponents."""
     try:
         cleaned = expr.strip()
-        # Convert calculator caret exponent to Python exponentiation
         cleaned = cleaned.replace('^', '**')
         
-        # Safe namespace wrapping trig functions in degrees by default
         safe_dict = {
             "sin": lambda x: math.sin(math.radians(x)),
             "cos": lambda x: math.cos(math.radians(x)),
@@ -38,10 +37,8 @@ def evaluate_math_expression(expr):
             if not name.startswith('_'):
                 safe_dict[name] = getattr(math, name)
         
-        # Evaluate expression
         result = eval(cleaned, {"__builtins__": {}}, safe_dict)
         
-        # Format clean number output (remove trailing .0 if integer)
         if isinstance(result, float) and result.is_integer():
             result = int(result)
             
@@ -74,6 +71,7 @@ def clean_for_display(text):
     
     return "\n".join(cleaned_lines)
 
+# 1. Main ESP32 Endpoint (Handles direct text expressions or image bytes from ESP32)
 @app.route("/", methods=["GET", "POST"])
 def bridge_handler():
     global latest_chat_history
@@ -90,14 +88,11 @@ def bridge_handler():
                 if not user_expression:
                     return "No expression", 200
                 
-                # 1. Try evaluating pure math expressions instantly and flawlessly via Python
                 direct_result = evaluate_math_expression(user_expression)
                 if direct_result is not None:
                     solution_text = direct_result
                 else:
-                    # 2. Fall back to Gemini for complex word problems or multi-step questions
-                    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
-                    
+                    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
                     prompt = (
                         f"Solve directly and concisely: {user_expression}. "
                         "Give short steps and the final answer. Plain text only, no markdown. "
@@ -135,7 +130,7 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
                 prompt = "Analyze this image and provide a short numerical solution in plain text."
                 
                 payload = {
@@ -177,6 +172,71 @@ def bridge_handler():
         
         latest_chat_history = solution_text
         return solution_text, 200
+
+# 2. Telegram Webhook Endpoint (Receives photos/messages from Telegram bot)
+@app.route("/webhook", methods=["POST"])
+def telegram_webhook():
+    global latest_chat_history
+    data = request.get_json()
+    
+    if not data or "message" not in data:
+        return "OK", 200
+
+    message = data["message"]
+    chat_id = message["chat"]["id"]
+    
+    try:
+        image_url = None
+        # Check if message contains a photo
+        if "photo" in message and len(message["photo"]) > 0:
+            photo = message["photo"][-1] # Highest resolution photo
+            file_id = photo["file_id"]
+            
+            # Get file path from Telegram
+            file_info_res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}")
+            file_info = file_info_res.json()
+            
+            if file_info.get("ok"):
+                file_path = file_info["result"]["file_path"]
+                image_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+
+        caption = message.get("caption", message.get("text", "Solve this problem."))
+
+        if image_url:
+            # Download image and send to Gemini Vision
+            img_res = requests.get(image_url)
+            base64_image = base64.b64encode(img_res.content).decode('utf-8')
+            
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": caption},
+                        {"inline_data": {"mime_type": "image/jpeg", "data": base64_image}}
+                    ]
+                }]
+            }
+            
+            gemini_res = requests.post(gemini_url, json=payload, timeout=20).json()
+            candidates = gemini_res.get("candidates", [])
+            if candidates:
+                content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "No response")
+                answer = clean_for_display(content)
+            else:
+                answer = "Vision processing failed."
+                
+            latest_chat_history = answer
+            
+            # Send answer back to Telegram chat
+            requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": answer
+            })
+
+    except Exception as e:
+        print("Webhook Error:", e)
+
+    return "OK", 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
