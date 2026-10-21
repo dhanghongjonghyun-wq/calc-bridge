@@ -6,27 +6,28 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+# Pulls Venice API key (falls back to checking OPENROUTER_API_KEY if variable name wasn't changed)
+VENICE_API_KEY = os.environ.get("VENICE_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
 latest_chat_history = "Ready"
 
 def clean_for_display(text):
     if not text:
         return "No text returned"
     
-    # Convert LaTeX symbols to clean plain-text equivalents
+    # Filter out any stray system/safety text lines
+    lines = text.split('\n')
+    filtered_lines = [line for line in lines if "user safety" not in line.lower() and "safety:" not in line.lower()]
+    text = "\n".join(filtered_lines)
+    
+    # Clean math syntax for text displays
     text = text.replace(r"\times", "*").replace(r"\div", "/")
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
-    
-    # Strip markdown and LaTeX formatting wrappers
     text = text.replace("$$", "").replace("$", "").replace("**", "").replace("*", "")
     text = text.replace(r"\boxed", "").replace("{", "").replace("}", "")
     text = text.replace("---", "").replace("###", "")
-    
-    # Remove any stray backslash commands
     text = re.sub(r'\\[a-zA-Z]+', '', text)
     
-    # Clean up punctuation and non-ASCII artifacts
     text = text.replace("•", "-").replace("—", "-").replace("–", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
     
@@ -44,24 +45,20 @@ def bridge_handler():
     if request.method == "POST":
         try:
             content_type = request.headers.get("Content-Type", "")
-            backup_models = [
-                "google/gemma-4-31b-it:free",
-                "openrouter/free"
-            ]
-
-            # Enforce zero-LaTeX plain text output in the prompt itself
-            strict_prompt = " STRICT FORMAT: Output plain text math only. Use *, /, +, -, =. NO LaTeX, NO backslashes, NO markdown formatting."
+            
+            venice_url = "https://api.venice.ai/api/v1/chat/completions"
+            model_name = "venice-uncensored-1-2"  # Fast, reliable unserved text/chat model
 
             if "text/plain" in content_type:
                 user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
                     return "No expression", 200
                 
-                prompt = f"Solve directly and concisely: {user_expression}. Short steps and final answer.{strict_prompt}"
+                prompt = f"Solve directly and concisely: {user_expression}. Short steps and final answer only. Plain text, no markdown."
                 
                 payload = {
-                    "models": backup_models,
-                    "max_tokens": 300,
+                    "model": model_name,
+                    "max_tokens": 400,
                     "messages": [{"role": "user", "content": prompt}]
                 }
             else:
@@ -70,11 +67,11 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = f"Analyze this image and provide a short numerical solution in plain text.{strict_prompt}"
+                prompt = "Analyze this image and provide a short numerical solution in plain text."
                 
                 payload = {
-                    "models": backup_models, 
-                    "max_tokens": 300,
+                    "model": model_name, 
+                    "max_tokens": 400,
                     "messages": [
                         {
                             "role": "user",
@@ -87,29 +84,23 @@ def bridge_handler():
                 }
 
             headers = {
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Authorization": f"Bearer {VENICE_API_KEY}",
                 "Content-Type": "application/json"
             }
 
-            or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=15)
+            response = requests.post(venice_url, headers=headers, json=payload, timeout=15)
+            res_json = response.json()
             
-            res_json = or_response.json()
             if "error" in res_json:
                 return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
 
             choices = res_json.get("choices", [])
             if choices:
-                choice = choices[0]
-                message = choice.get("message", {})
-                content = message.get("content")
-                
-                if not content:
-                    content = choice.get("text", "")
-
+                content = choices[0].get("message", {}).get("content")
                 if content and len(content.strip()) > 0:
                     solution_text = clean_for_display(content)
                 else:
-                    solution_text = f"Model Blank (Reason: {choice.get('finish_reason', 'unknown')})"
+                    solution_text = f"Model Blank (Reason: {choices[0].get('finish_reason', 'unknown')})"
             else:
                 solution_text = "API Error: No choices"
                 
