@@ -29,19 +29,15 @@ def bridge_handler():
             content_type = request.headers.get("Content-Type", "")
             
             if "text/plain" in content_type:
-                try:
-                    user_expression = request.data.decode("utf-8") if request.data else ""
-                except Exception:
-                    user_expression = str(request.data)
-                    
+                user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
                     return "No expression", 200
                 
-                prompt = f"Calculate: {user_expression}. Give short step-by-step numbers only. Plain text."
+                prompt = f"Calculate: {user_expression}. Short numbers only. Plain text."
                 
                 payload = {
                     "model": "openrouter/free",
-                    "max_tokens": 2048,
+                    "max_tokens": 1024,
                     "messages": [{"role": "user", "content": prompt}]
                 }
             else:
@@ -54,7 +50,7 @@ def bridge_handler():
                 
                 payload = {
                     "model": "openrouter/free", 
-                    "max_tokens": 2048,
+                    "max_tokens": 1024,
                     "messages": [
                         {
                             "role": "user",
@@ -71,32 +67,27 @@ def bridge_handler():
                 "Content-Type": "application/json"
             }
 
-            or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
+            # Shorter timeout (15s) prevents Gunicorn worker death
+            or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=15)
             
-            try:
-                res_json = or_response.json()
-            except Exception:
-                return f"API Error: Invalid JSON (HTTP {or_response.status_code})", 200
-            
+            res_json = or_response.json()
             if "error" in res_json:
                 return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
 
             choices = res_json.get("choices", [])
             if choices:
-                choice = choices[0]
-                message = choice.get("message", {})
-                content = message.get("content")
-                finish_reason = choice.get("finish_reason", "unknown")
-                
-                if content and len(content.strip()) > 0:
+                content = choices[0].get("message", {}).get("content")
+                if content:
                     solution_text = clean_for_display(content)
                 else:
-                    solution_text = f"Model Blank (Reason: {finish_reason})"
+                    solution_text = f"Model Blank (Reason: {choices[0].get('finish_reason', 'unknown')})"
             else:
-                solution_text = "API Error: No choices in response"
+                solution_text = "API Error: No choices"
                 
+        except requests.exceptions.Timeout:
+            solution_text = "Error: AI response timeout"
         except Exception as e:
-            solution_text = f"Bridge Error: {str(e)}"
+            solution_text = f"Error: {str(e)}"
         
         latest_chat_history = solution_text
         return solution_text, 200
