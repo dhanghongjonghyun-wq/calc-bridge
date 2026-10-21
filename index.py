@@ -24,6 +24,9 @@ def clean_for_display(text):
     text = text.replace("•", "-").replace("—", "-").replace("–", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
     
+    # Automatically fix missing multiplication operators before an equals sign (e.g., "60 0.766 = 45.96" -> "60 * 0.766 = 45.96")
+    text = re.sub(r'(\d+)\s+(\d+\.\d+)\s*=', r'\1 * \2 =', text)
+    
     # Keep newlines intact while cleaning spacing and non-ASCII characters per line
     lines = text.split('\n')
     cleaned_lines = [re.sub(r'[^\x00-\x7F]+', ' ', line) for line in lines]
@@ -46,11 +49,16 @@ def bridge_handler():
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
 
             if "text/plain" in content_type:
-                user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
+                user_expression = request.data.decode("text/plain" if False else "utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
                     return "No expression", 200
                 
-                prompt = f"Solve directly and concisely: {user_expression}. Give short steps and the final answer. Plain text only, no markdown."
+                # Explicitly mandate operator usage in the prompt
+                prompt = (
+                    f"Solve directly and concisely: {user_expression}. "
+                    "Give short steps and the final answer. Plain text only, no markdown. "
+                    "CRITICAL: Always use explicit multiplication signs (*). Never omit operators or use spaces between numbers for multiplication."
+                )
                 
                 payload = {
                     "contents": [{
@@ -63,7 +71,7 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = "Analyze this image and provide a short numerical solution in plain text."
+                prompt = "Analyze this image and provide a short numerical solution in plain text with explicit operators."
                 
                 payload = {
                     "contents": [{
