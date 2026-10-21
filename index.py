@@ -12,10 +12,27 @@ latest_chat_history = "Ready"
 def clean_for_display(text):
     if not text:
         return "No text returned"
+    
+    # Convert LaTeX symbols to clean plain-text equivalents
+    text = text.replace(r"\times", "*").replace(r"\div", "/")
+    text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
+    text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
+    
+    # Strip markdown and LaTeX formatting wrappers
+    text = text.replace("$$", "").replace("$", "").replace("**", "").replace("*", "")
+    text = text.replace(r"\boxed", "").replace("{", "").replace("}", "")
+    text = text.replace("---", "").replace("###", "")
+    
+    # Remove any stray backslash commands
+    text = re.sub(r'\\[a-zA-Z]+', '', text)
+    
+    # Clean up punctuation and non-ASCII artifacts
     text = text.replace("•", "-").replace("—", "-").replace("–", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
-    cleaned = re.sub(r'[^\x00-\x7F]+', '?', text)
-    return cleaned.strip()
+    
+    cleaned = re.sub(r'[^\x00-\x7F]+', ' ', text)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned
 
 @app.route("/", methods=["GET", "POST"])
 def bridge_handler():
@@ -27,17 +44,24 @@ def bridge_handler():
     if request.method == "POST":
         try:
             content_type = request.headers.get("Content-Type", "")
-            
+            backup_models = [
+                "google/gemma-4-31b-it:free",
+                "openrouter/free"
+            ]
+
+            # Enforce zero-LaTeX plain text output in the prompt itself
+            strict_prompt = " STRICT FORMAT: Output plain text math only. Use *, /, +, -, =. NO LaTeX, NO backslashes, NO markdown formatting."
+
             if "text/plain" in content_type:
                 user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
                     return "No expression", 200
                 
-                prompt = f"Calculate: {user_expression}. Step by step."
+                prompt = f"Solve directly and concisely: {user_expression}. Short steps and final answer.{strict_prompt}"
                 
                 payload = {
-                    "model": "openrouter/free",
-                    "max_tokens": 1500,
+                    "models": backup_models,
+                    "max_tokens": 300,
                     "messages": [{"role": "user", "content": prompt}]
                 }
             else:
@@ -46,11 +70,11 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = "Analyze this image and solve step by step."
+                prompt = f"Analyze this image and provide a short numerical solution in plain text.{strict_prompt}"
                 
                 payload = {
-                    "model": "openrouter/free", 
-                    "max_tokens": 1500,
+                    "models": backup_models, 
+                    "max_tokens": 300,
                     "messages": [
                         {
                             "role": "user",
@@ -67,28 +91,30 @@ def bridge_handler():
                 "Content-Type": "application/json"
             }
 
-            or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=20)
-            res_json = or_response.json()
+            or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=15)
             
+            res_json = or_response.json()
             if "error" in res_json:
                 return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
 
             choices = res_json.get("choices", [])
             if choices:
-                message = choices[0].get("message", {})
+                choice = choices[0]
+                message = choice.get("message", {})
                 content = message.get("content")
-                reasoning = message.get("reasoning") # Capture thinking steps from reasoning models
                 
-                # Fallback to reasoning text if content is blank due to length cutoff
-                target_text = content if content else reasoning
-                
-                if target_text:
-                    solution_text = clean_for_display(target_text)
+                if not content:
+                    content = choice.get("text", "")
+
+                if content and len(content.strip()) > 0:
+                    solution_text = clean_for_display(content)
                 else:
-                    solution_text = f"Model Blank (Reason: {choices[0].get('finish_reason', 'unknown')})"
+                    solution_text = f"Model Blank (Reason: {choice.get('finish_reason', 'unknown')})"
             else:
                 solution_text = "API Error: No choices"
                 
+        except requests.exceptions.Timeout:
+            solution_text = "Error: AI response timeout"
         except Exception as e:
             solution_text = f"Error: {str(e)}"
         
