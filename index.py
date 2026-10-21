@@ -28,22 +28,16 @@ def bridge_handler():
         try:
             content_type = request.headers.get("Content-Type", "")
             
-            # Using OpenRouter's model fallback array for high availability
-            backup_models = [
-                "google/gemma-4-31b-it:free",
-                "openrouter/free"
-            ]
-
             if "text/plain" in content_type:
                 user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
                     return "No expression", 200
                 
-                prompt = f"Solve directly and concisely: {user_expression}. Short numbers and steps only. Plain text."
+                prompt = f"Calculate: {user_expression}. Step by step."
                 
                 payload = {
-                    "models": backup_models,  # Automatically tries backup models if one fails
-                    "max_tokens": 400,
+                    "model": "openrouter/free",
+                    "max_tokens": 1500,
                     "messages": [{"role": "user", "content": prompt}]
                 }
             else:
@@ -52,11 +46,11 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = "Analyze this image and provide a short numerical solution in plain text."
+                prompt = "Analyze this image and solve step by step."
                 
                 payload = {
-                    "models": backup_models, 
-                    "max_tokens": 400,
+                    "model": "openrouter/free", 
+                    "max_tokens": 1500,
                     "messages": [
                         {
                             "role": "user",
@@ -73,30 +67,28 @@ def bridge_handler():
                 "Content-Type": "application/json"
             }
 
-            or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=15)
-            
+            or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=20)
             res_json = or_response.json()
+            
             if "error" in res_json:
                 return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
 
             choices = res_json.get("choices", [])
             if choices:
-                choice = choices[0]
-                message = choice.get("message", {})
+                message = choices[0].get("message", {})
                 content = message.get("content")
+                reasoning = message.get("reasoning") # Capture thinking steps from reasoning models
                 
-                if not content:
-                    content = choice.get("text", "")
-
-                if content and len(content.strip()) > 0:
-                    solution_text = clean_for_display(content)
+                # Fallback to reasoning text if content is blank due to length cutoff
+                target_text = content if content else reasoning
+                
+                if target_text:
+                    solution_text = clean_for_display(target_text)
                 else:
-                    solution_text = f"Model Blank (Reason: {choice.get('finish_reason', 'unknown')})"
+                    solution_text = f"Model Blank (Reason: {choices[0].get('finish_reason', 'unknown')})"
             else:
                 solution_text = "API Error: No choices"
                 
-        except requests.exceptions.Timeout:
-            solution_text = "Error: AI response timeout"
         except Exception as e:
             solution_text = f"Error: {str(e)}"
         
