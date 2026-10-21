@@ -53,12 +53,13 @@ def bridge_handler():
                 if not user_expression:
                     return "No expression", 200
                 
-                # Added strict degree rule for trig and explicit operator enforcement
+                # Updated trigonometry instruction to include both degree and radian final values
                 prompt = (
                     f"Solve directly and concisely: {user_expression}. "
                     "Give short steps and the final answer. Plain text only, no markdown. "
                     "CRITICAL MULTIPLICATION: Always use explicit multiplication signs (*). Never omit operators or use spaces between numbers for multiplication. "
-                    "CRITICAL TRIGONOMETRY: Always treat all angle inputs for trigonometric functions (sin, cos, tan, etc.) as DEGREES by default, unless explicitly labeled with 'rad' or 'radians'."
+                    "CRITICAL TRIGONOMETRY: Always treat angle inputs for trig functions as DEGREES for the step-by-step work. "
+                    "For the Final Answer, provide the degree-based answer followed immediately by the equivalent radian answer in parentheses (e.g., Final Answer: X deg (Y rad)). Do not include separate formula steps for radians."
                 )
                 
                 payload = {
@@ -72,7 +73,7 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = "Analyze this image and provide a short numerical solution in plain text with explicit operators, treating trig functions as degrees."
+                prompt = "Analyze this image and provide a short numerical solution in plain text with explicit operators, treating trig functions as degrees and showing both degree and radian final answers."
                 
                 payload = {
                     "contents": [{
