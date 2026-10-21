@@ -33,11 +33,12 @@ def bridge_handler():
                 if not user_expression:
                     return "No expression", 200
                 
-                prompt = f"Calculate: {user_expression}. Short numbers only. Plain text."
+                # Strict, concise prompt to prevent length cutoffs
+                prompt = f"Solve: {user_expression}. Output direct final answer and short numbers only. Plain text."
                 
                 payload = {
                     "model": "openrouter/free",
-                    "max_tokens": 1024,
+                    "max_tokens": 300,  # Keeps it well within free tier output limits
                     "messages": [{"role": "user", "content": prompt}]
                 }
             else:
@@ -46,11 +47,11 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = "Analyze this image and provide step-by-step numerical solution in plain text."
+                prompt = "Solve this problem. Short numerical answer only. Plain text."
                 
                 payload = {
                     "model": "openrouter/free", 
-                    "max_tokens": 1024,
+                    "max_tokens": 300,
                     "messages": [
                         {
                             "role": "user",
@@ -67,7 +68,6 @@ def bridge_handler():
                 "Content-Type": "application/json"
             }
 
-            # Shorter timeout (15s) prevents Gunicorn worker death
             or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=15)
             
             res_json = or_response.json()
