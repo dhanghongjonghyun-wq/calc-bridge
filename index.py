@@ -11,13 +11,12 @@ latest_chat_history = "Ready"
 
 def clean_for_display(text):
     if not text:
-        return "No text returned-
+        return "No text returned"
     
     text = text.replace(r"\times", "*").replace(r"\div", "/")
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
     text = text.replace("$$", "").replace("$", "").replace("**", "")
-    # NOTE: Removed .replace("*", "") so multiplication (*) and exponent signs are preserved!
     
     text = text.replace(r"\boxed", "").replace("{", "").replace("}", "")
     text = text.replace("---", "").replace("###", "")
@@ -26,7 +25,7 @@ def clean_for_display(text):
     text = text.replace("•", "-").replace("—", "-").replace("–", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
     
-    # Automatically fix missing multiplication operators before an equals sign (e.g., "60 0.766 = 45.96" -> "60 * 0.766 = 45.96")
+    # Automatically fix missing multiplication operators before an equals sign
     text = re.sub(r'(\d+)\s+(\d+\.\d+)\s*=', r'\1 * \2 =', text)
     
     # Keep newlines intact while cleaning spacing and non-ASCII characters per line
@@ -55,7 +54,6 @@ def bridge_handler():
                 if not user_expression:
                     return "No expression", 200
                 
-                # Instruction update to handle exponents, multiplication, and trig rules smoothly
                 prompt = (
                     f"Solve directly and concisely: {user_expression}. "
                     "Give short steps and the final answer. Plain text only, no markdown. "
