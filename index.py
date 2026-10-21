@@ -11,12 +11,14 @@ latest_chat_history = "Ready"
 
 def clean_for_display(text):
     if not text:
-        return "No text returned"
+        return "No text returned-
     
     text = text.replace(r"\times", "*").replace(r"\div", "/")
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
-    text = text.replace("$$", "").replace("$", "").replace("**", "").replace("*", "")
+    text = text.replace("$$", "").replace("$", "").replace("**", "")
+    # NOTE: Removed .replace("*", "") so multiplication (*) and exponent signs are preserved!
+    
     text = text.replace(r"\boxed", "").replace("{", "").replace("}", "")
     text = text.replace("---", "").replace("###", "")
     text = re.sub(r'\\[a-zA-Z]+', '', text)
@@ -53,11 +55,11 @@ def bridge_handler():
                 if not user_expression:
                     return "No expression", 200
                 
-                # Updated trigonometry instruction to include both degree and radian final values
+                # Instruction update to handle exponents, multiplication, and trig rules smoothly
                 prompt = (
                     f"Solve directly and concisely: {user_expression}. "
                     "Give short steps and the final answer. Plain text only, no markdown. "
-                    "CRITICAL MULTIPLICATION: Always use explicit multiplication signs (*). Never omit operators or use spaces between numbers for multiplication. "
+                    "CRITICAL MULTIPLICATION & EXPONENTS: Always use explicit multiplication signs (*) and standard exponent notation (* or ^). Never omit operators or use spaces between numbers for multiplication. "
                     "CRITICAL TRIGONOMETRY: Always treat angle inputs for trig functions as DEGREES for the step-by-step work. "
                     "For the Final Answer, provide the degree-based answer followed immediately by the equivalent radian answer in parentheses (e.g., Final Answer: X deg (Y rad)). Do not include separate formula steps for radians."
                 )
@@ -73,7 +75,7 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = "Analyze this image and provide a short numerical solution in plain text with explicit operators, treating trig functions as degrees and showing both degree and radian final answers."
+                prompt = "Analyze this image and provide a short numerical solution in plain text with explicit operators, handling exponents and trig functions correctly."
                 
                 payload = {
                     "contents": [{
