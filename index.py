@@ -24,9 +24,13 @@ def clean_for_display(text):
     text = text.replace("•", "-").replace("—", "-").replace("–", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
     
-    cleaned = re.sub(r'[^\x00-\x7F]+', ' ', text)
-    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-    return cleaned
+    # Keep newlines intact while cleaning spacing and non-ASCII characters per line
+    lines = text.split('\n')
+    cleaned_lines = [re.sub(r'[^\x00-\x7F]+', ' ', line) for line in lines]
+    cleaned_lines = [re.sub(r'[ \t]+', ' ', line).strip() for line in cleaned_lines]
+    cleaned_lines = [line for line in cleaned_lines if line]
+    
+    return "\n".join(cleaned_lines)
 
 @app.route("/", methods=["GET", "POST"])
 def bridge_handler():
@@ -39,7 +43,6 @@ def bridge_handler():
         try:
             content_type = request.headers.get("Content-Type", "")
             
-            # Using Gemini 3.5 Flash-Lite endpoint
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
 
             if "text/plain" in content_type:
