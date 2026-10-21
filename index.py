@@ -32,11 +32,10 @@ def bridge_handler():
                 user_expression = request.data.decode("utf-8") if request.data else ""
                 if not user_expression:
                     return "No expression", 400
-                    
-                prompt = (
-                    "Provide a direct, step-by-step engineering solution for this expression: "
-                    f"{user_expression}. Use plain ASCII text only. No markdown, asterisks, or LaTeX."
-                )
+                
+                # Strict, concise prompt to prevent empty/long responses
+                prompt = f"Calculate step by step: {user_expression}. Output plain text only, no markdown."
+                
                 payload = {
                     "model": "openrouter/free",
                     "max_tokens": 512,
@@ -48,7 +47,7 @@ def bridge_handler():
                     return "No image", 400
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = "Analyze this engineering problem and provide a direct step-by-step numerical solution in plain ASCII text."
+                prompt = "Analyze this image and solve step by step in plain text."
                 
                 payload = {
                     "model": "openrouter/free", 
@@ -75,11 +74,20 @@ def bridge_handler():
             if "error" in res_json:
                 return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
 
-            choices = res_json.get("choices")
-            if choices and choices[0].get("message", {}).get("content"):
-                solution_text = clean_for_display(choices[0]["message"]["content"])
-            else:
-                solution_text = "Error: Empty response"
+            # Safe extraction logic ensuring we catch nested data properly
+            choices = res_json.get("choices", [])
+            solution_text = ""
+            if choices:
+                message = choices[0].get("message", {})
+                content = message.get("content")
+                if content:
+                    solution_text = clean_for_display(content)
+                else:
+                    # Fallback check for alternative choice formats
+                    solution_text = clean_for_display(choices[0].get("text", ""))
+
+            if not solution_text:
+                solution_text = f"Error: Empty output. Raw: {str(res_json)[:100]}"
                 
         except Exception as e:
             solution_text = f"Error: {str(e)}"
