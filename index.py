@@ -39,8 +39,8 @@ def bridge_handler():
         try:
             content_type = request.headers.get("Content-Type", "")
             
-            # Corrected Gemini 1.5 Flash endpoint format
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+            # Updated to use gemini-3.8-flash
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={GEMINI_API_KEY}"
 
             if "text/plain" in content_type:
                 user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
