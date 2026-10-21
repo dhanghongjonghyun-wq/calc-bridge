@@ -1,97 +1,41 @@
 import os
-import base64
-import requests
 from flask import Flask, request
+import google.generativeai as genai
 
 app = Flask(__name__)
 
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-latest_chat_history = "No calculations performed yet."
+# Configure Gemini API using environment variable set in Render dashboard
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+genai.configure(api_key=GEMINI_API_KEY)
 
-@app.route("/", methods=["GET", "POST"])
-def bridge_handler():
-    global latest_chat_history
-    
-    if request.method == "GET":
-        return latest_chat_history, 200
+# Using a stable, supported flash model for fast cloud math/vision evaluation
+model = genai.GenerativeModel("gemini-1.5-flash")
 
-    if request.method == "POST":
-        content_type = request.headers.get("Content-Type", "")
-        
-        # Case 1: Text Query from AI Calculator Mode
-        if "text/plain" in content_type:
-            user_expression = request.data.decode("utf-8")
-            if not user_expression:
-                return "No expression received", 400
-                
-            prompt = (
-                "You are a precise engineering and scientific calculator. "
-                f"Evaluate this expression and explain the solution step-by-step: {user_expression}. "
-                "Use PLAIN TEXT ONLY. Do NOT use markdown asterisks (*), hashtags, "
-                "bold formatting, backticks, or LaTeX math blocks."
-            )
-            
-            headers = {
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json"
-            }
-            
-            payload = {
-                "model": "openrouter/free",
-                "max_tokens": 1024,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-            
-        # Case 2: Image Query from OV5640 Camera Mode
-        else:
-            image_bytes = request.data
-            if not image_bytes:
-                return "No image data received", 400
 
-            base64_image = base64.b64encode(image_bytes).decode('utf-8')
-            image_data_url = f"data:image/jpeg;base64,{base64_image}"
-            
-            prompt = (
-                "You are a concise engineering calculator. "
-                "Analyze the equation or circuit diagram in this image "
-                "and provide a step-by-step numerical solution. "
-                "Use PLAIN TEXT ONLY. No markdown, asterisks, or LaTeX."
-            )
-            
-            headers = {
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json"
-            }
-            
-            payload = {
-                "model": "openrouter/free", 
-                "max_tokens": 1024,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": image_data_url}}
-                        ]
-                    }
-                ]
-            }
+@app.route("/", methods=["POST"])
+def handle_calc_request():
+  try:
+    # Safely decode incoming payload from ESP32
+    raw_data = request.data.decode("utf-8") if request.data else ""
+    prompt = raw_data.strip() if raw_data else ""
 
-        # Send request to OpenRouter/Gemini API
-        try:
-            or_response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions", 
-                headers=headers, 
-                json=payload, 
-                timeout=40
-            )
-            res_json = or_response.json()
-            solution_text = res_json["choices"][0]["message"]["content"].strip()
-        except Exception as e:
-            solution_text = f"API Error: {str(e)}"
-        
-        latest_chat_history = solution_text
-        return solution_text, 200
+    if not prompt:
+      return "Error: Empty expression received", 400
+
+    # Generate content using Gemini
+    response = model.generate_content(prompt)
+
+    # Safely check if response and response.text exist before calling strip()
+    if response and hasattr(response, "text") and response.text:
+      return response.text.strip(), 200
+    else:
+      return "Error: Empty response from AI model", 500
+
+  except Exception as e:
+    # Catch any runtime/API exceptions and return a clean error string to the ESP32
+    return f"Bridge Server Error: {str(e)}", 500
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+  port = int(os.environ.get("PORT", 5000))
+  app.run(host="0.0.0.0", port=port)
