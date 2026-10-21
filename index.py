@@ -42,7 +42,7 @@ def bridge_handler():
                 )
                 
                 payload = {
-                    "model": "meta-llama/llama-3-8b-instruct:free",  # Stable free model
+                    "model": "openrouter/free",  # Universal free auto-router (never runs out of endpoints)
                     "max_tokens": 1024,
                     "messages": [{"role": "user", "content": prompt}]
                 }
@@ -64,7 +64,7 @@ def bridge_handler():
                 )
                 
                 payload = {
-                    "model": "meta-llama/llama-3-8b-instruct:free", 
+                    "model": "openrouter/free", 
                     "max_tokens": 1024,
                     "messages": [
                         {
@@ -93,7 +93,7 @@ def bridge_handler():
             
             if "error" in res_json:
                 err_msg = res_json['error'].get('message', 'Unknown OpenRouter Error')
-                return f"API Error: {err_msg}", 200 # Return 200 so ESP32 displays the clean error instead of crashing
+                return f"API Error: {err_msg}", 200
 
             choices = res_json.get("choices")
             if choices and len(choices) > 0:
