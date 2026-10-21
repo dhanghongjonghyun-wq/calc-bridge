@@ -28,15 +28,21 @@ def bridge_handler():
         try:
             content_type = request.headers.get("Content-Type", "")
             
+            # Using OpenRouter's model fallback array for high availability
+            backup_models = [
+                "google/gemma-4-31b-it:free",
+                "openrouter/free"
+            ]
+
             if "text/plain" in content_type:
                 user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
                     return "No expression", 200
                 
-                prompt = f"Solve this math expression directly and concisely: {user_expression}. Give the final numerical answer and brief steps in plain text only."
+                prompt = f"Solve directly and concisely: {user_expression}. Short numbers and steps only. Plain text."
                 
                 payload = {
-                    "model": "google/gemma-4-31b-it:free",  # Active free multimodal model
+                    "models": backup_models,  # Automatically tries backup models if one fails
                     "max_tokens": 400,
                     "messages": [{"role": "user", "content": prompt}]
                 }
@@ -49,7 +55,7 @@ def bridge_handler():
                 prompt = "Analyze this image and provide a short numerical solution in plain text."
                 
                 payload = {
-                    "model": "google/gemma-4-31b-it:free", 
+                    "models": backup_models, 
                     "max_tokens": 400,
                     "messages": [
                         {
