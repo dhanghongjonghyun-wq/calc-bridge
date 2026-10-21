@@ -12,10 +12,8 @@ latest_chat_history = "No calculations performed yet."
 def clean_for_display(text):
     if not text:
         return ""
-    # Replace common unicode/smart symbols with safe ASCII equivalents
     text = text.replace("•", "-").replace("—", "-").replace("–", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
-    # Strip any remaining non-ASCII characters that cause question marks on ESP32
     cleaned = re.sub(r'[^\x00-\x7F]+', '?', text)
     return cleaned.strip()
 
@@ -42,13 +40,8 @@ def bridge_handler():
                 "bold formatting, backticks, bullet points, or LaTeX math blocks."
             )
             
-            headers = {
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json"
-            }
-            
             payload = {
-                "model": "openrouter/free",
+                "model": "google/gemma-4-31b-it:free",  # Stable free multimodal model
                 "max_tokens": 1024,
                 "messages": [{"role": "user", "content": prompt}]
             }
@@ -69,13 +62,8 @@ def bridge_handler():
                 "Use PLAIN ASCII TEXT ONLY. No markdown, asterisks, bullets, or LaTeX."
             )
             
-            headers = {
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json"
-            }
-            
             payload = {
-                "model": "openrouter/free", 
+                "model": "google/gemma-4-31b-it:free", 
                 "max_tokens": 1024,
                 "messages": [
                     {
@@ -88,7 +76,11 @@ def bridge_handler():
                 ]
             }
 
-        # Send request to OpenRouter API with safety checks
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
         try:
             or_response = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions", 
@@ -98,6 +90,10 @@ def bridge_handler():
             )
             res_json = or_response.json()
             
+            # Debug log to Render console if something unexpected happens
+            if "error" in res_json:
+                return f"API Error: {res_json['error'].get('message', 'Unknown')}", 500
+
             choices = res_json.get("choices")
             if choices and len(choices) > 0:
                 message = choices[0].get("message", {})
@@ -105,12 +101,12 @@ def bridge_handler():
                 if content:
                     solution_text = clean_for_display(content)
                 else:
-                    solution_text = "Error: Model returned empty content."
+                    solution_text = f"Error: Empty content from model. Raw: {res_json}"
             else:
-                solution_text = f"API Error: Invalid response structure"
+                solution_text = f"API Error: Invalid response -> {res_json}"
                 
         except Exception as e:
-            solution_text = f"API Error: {str(e)}"
+            solution_text = f"Bridge Exception: {str(e)}"
         
         latest_chat_history = solution_text
         return solution_text, 200
