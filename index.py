@@ -71,7 +71,7 @@ def clean_for_display(text):
     
     return "\n".join(cleaned_lines)
 
-# 1. Main ESP32 Endpoint (Handles direct text expressions or image bytes)
+# 1. Main ESP32 Endpoint (Handles polling and direct text expressions)
 @app.route("/", methods=["GET", "POST"])
 def bridge_handler():
     global latest_chat_history
@@ -93,12 +93,15 @@ def bridge_handler():
                     solution_text = direct_result
                 else:
                     gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+                    
                     prompt = (
-                        f"Solve directly and concisely: {user_expression}. "
-                        "Give short steps and the final answer. Plain text only, no markdown. "
-                        "CRITICAL MULTIPLICATION & EXPONENTS: Always use explicit multiplication signs (*) and standard exponent notation (* or ^). "
-                        "CRITICAL TRIGONOMETRY: Always treat angle inputs for trig functions as DEGREES for the step-by-step work. "
-                        "For the Final Answer, provide the degree-based answer followed immediately by the equivalent radian answer in parentheses (e.g., Final Answer: X deg (Y rad))."
+                        f"Solve directly: {user_expression}. "
+                        "FORMAT RULES:\n"
+                        "- NO introductory or concluding sentences.\n"
+                        "- Use bullet points or numbered steps only.\n"
+                        "- Plain text, no conversational filler or yapping.\n"
+                        "- Use explicit multiplication (*) and exponents (^).\n"
+                        "- For trig, treat inputs as degrees and include radians in parentheses: X deg (Y rad)."
                     )
                     
                     payload = {
@@ -125,45 +128,7 @@ def bridge_handler():
                     else:
                         solution_text = "API Error: No candidates"
             else:
-                image_bytes = request.data
-                if not image_bytes:
-                    return "No image", 200
-
-                base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
-                prompt = "Analyze this image and provide a short numerical solution in plain text."
-                
-                payload = {
-                    "contents": [{
-                        "parts": [
-                            {"text": prompt},
-                            {
-                                "inline_data": {
-                                    "mime_type": "image/jpeg",
-                                    "data": base64_image
-                                }
-                            }
-                        ]
-                    }]
-                }
-
-                headers = {"Content-Type": "application/json"}
-                response = requests.post(gemini_url, headers=headers, json=payload, timeout=15)
-                res_json = response.json()
-                
-                if "error" in res_json:
-                    return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
-
-                candidates = res_json.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        content = parts[0].get("text", "")
-                        solution_text = clean_for_display(content)
-                    else:
-                        solution_text = "Model Blank: No parts returned"
-                else:
-                    solution_text = "API Error: No candidates"
+                solution_text = "Invalid Request Format"
                 
         except requests.exceptions.Timeout:
             solution_text = "Error: AI response timeout"
@@ -173,7 +138,7 @@ def bridge_handler():
         latest_chat_history = solution_text
         return solution_text, 200
 
-# 2. Telegram Webhook Endpoint
+# 2. Telegram Webhook Endpoint (Receives photos/messages from Telegram bot)
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
     global latest_chat_history
@@ -205,10 +170,20 @@ def telegram_webhook():
             base64_image = base64.b64encode(img_res.content).decode('utf-8')
             
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+            
+            prompt = (
+                f"{caption}\n"
+                "FORMAT RULES:\n"
+                "- NO introductory or concluding sentences.\n"
+                "- Use bullet points or numbered steps only.\n"
+                "- Plain text, no conversational filler or yapping.\n"
+                "- Give straight-to-the-point solutions easy to copy to notes."
+            )
+
             payload = {
                 "contents": [{
                     "parts": [
-                        {"text": caption},
+                        {"text": prompt},
                         {"inline_data": {"mime_type": "image/jpeg", "data": base64_image}}
                     ]
                 }]
