@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-latest_chat_history = "Ready"
+latest_chat_history = "Ready. Send an image to Telegram!"
 
 def evaluate_math_expression(expr):
     """Safely evaluate standard math expressions in Python, supporting degrees for trig and ^ for exponents."""
@@ -71,7 +71,7 @@ def clean_for_display(text):
     
     return "\n".join(cleaned_lines)
 
-# 1. Main ESP32 Endpoint (Handles polling and direct text expressions)
+# 1. Main ESP32 Endpoint (Handles direct text math expressions)
 @app.route("/", methods=["GET", "POST"])
 def bridge_handler():
     global latest_chat_history
@@ -138,7 +138,13 @@ def bridge_handler():
         latest_chat_history = solution_text
         return solution_text, 200
 
-# 2. Telegram Webhook Endpoint (Receives photos/messages from Telegram bot)
+# Explicit Poll Route for ESP32 Telegram Viewer sync
+@app.route("/poll", methods=["GET"])
+def poll_handler():
+    global latest_chat_history
+    return latest_chat_history, 200
+
+# 2. Telegram Webhook Endpoint (Receives photos from your phone)
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
     global latest_chat_history
@@ -206,6 +212,7 @@ def telegram_webhook():
                 
             latest_chat_history = answer
             
+            # Send answer back to your Telegram chat app on your phone
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json={
                 "chat_id": chat_id,
                 "text": answer
