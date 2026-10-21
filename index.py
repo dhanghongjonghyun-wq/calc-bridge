@@ -6,18 +6,12 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Pulls Venice API key (falls back to checking OPENROUTER_API_KEY if variable name wasn't changed)
-VENICE_API_KEY = os.environ.get("VENICE_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 latest_chat_history = "Ready"
 
 def clean_for_display(text):
     if not text:
         return "No text returned"
-    
-    # Filter out any stray system/safety text lines
-    lines = text.split('\n')
-    filtered_lines = [line for line in lines if "user safety" not in line.lower() and "safety:" not in line.lower()]
-    text = "\n".join(filtered_lines)
     
     # Clean math syntax for text displays
     text = text.replace(r"\times", "*").replace(r"\div", "/")
@@ -46,20 +40,20 @@ def bridge_handler():
         try:
             content_type = request.headers.get("Content-Type", "")
             
-            venice_url = "https://api.venice.ai/api/v1/chat/completions"
-            model_name = "venice-uncensored-1-2"  # Fast, reliable unserved text/chat model
+            # Using Gemini 1.5 Flash native endpoint
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
             if "text/plain" in content_type:
                 user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
                     return "No expression", 200
                 
-                prompt = f"Solve directly and concisely: {user_expression}. Short steps and final answer only. Plain text, no markdown."
+                prompt = f"Solve directly and concisely: {user_expression}. Give short steps and the final answer. Plain text only, no markdown."
                 
                 payload = {
-                    "model": model_name,
-                    "max_tokens": 400,
-                    "messages": [{"role": "user", "content": prompt}]
+                    "contents": [{
+                        "parts": [{"text": prompt}]
+                    }]
                 }
             else:
                 image_bytes = request.data
@@ -70,39 +64,39 @@ def bridge_handler():
                 prompt = "Analyze this image and provide a short numerical solution in plain text."
                 
                 payload = {
-                    "model": model_name, 
-                    "max_tokens": 400,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                            ]
-                        }
-                    ]
+                    "contents": [{
+                        "parts": [
+                            {"text": prompt},
+                            {
+                                "inline_data": {
+                                    "mime_type": "image/jpeg",
+                                    "data": base64_image
+                                }
+                            }
+                        ]
+                    }]
                 }
 
             headers = {
-                "Authorization": f"Bearer {VENICE_API_KEY}",
                 "Content-Type": "application/json"
             }
 
-            response = requests.post(venice_url, headers=headers, json=payload, timeout=15)
+            response = requests.post(gemini_url, headers=headers, json=payload, timeout=15)
             res_json = response.json()
             
             if "error" in res_json:
                 return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
 
-            choices = res_json.get("choices", [])
-            if choices:
-                content = choices[0].get("message", {}).get("content")
-                if content and len(content.strip()) > 0:
+            candidates = res_json.get("candidates", [])
+            if candidates:
+                parts = candidates[0].get("content", {}).get("parts", [])
+                if parts:
+                    content = parts[0].get("text", "")
                     solution_text = clean_for_display(content)
                 else:
-                    solution_text = f"Model Blank (Reason: {choices[0].get('finish_reason', 'unknown')})"
+                    solution_text = "Model Blank: No parts returned"
             else:
-                solution_text = "API Error: No choices"
+                solution_text = "API Error: No candidates"
                 
         except requests.exceptions.Timeout:
             solution_text = "Error: AI response timeout"
