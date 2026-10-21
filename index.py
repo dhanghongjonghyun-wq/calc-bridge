@@ -37,7 +37,7 @@ def bridge_handler():
                 
                 payload = {
                     "model": "openrouter/free",
-                    "max_tokens": 512,
+                    "max_tokens": 2048,  # Increased token limit
                     "messages": [{"role": "user", "content": prompt}]
                 }
             else:
@@ -50,7 +50,7 @@ def bridge_handler():
                 
                 payload = {
                     "model": "openrouter/free", 
-                    "max_tokens": 512,
+                    "max_tokens": 2048,  # Increased token limit
                     "messages": [
                         {
                             "role": "user",
