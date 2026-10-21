@@ -1,12 +1,23 @@
 import os
 import base64
 import requests
+import re
 from flask import Flask, request
 
 app = Flask(__name__)
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 latest_chat_history = "No calculations performed yet."
+
+def clean_for_display(text):
+    if not text:
+        return ""
+    # Replace common unicode/smart symbols with safe ASCII equivalents
+    text = text.replace("•", "-").replace("—", "-").replace("–", "-")
+    text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
+    # Strip any remaining non-ASCII characters that cause question marks on ESP32
+    cleaned = re.sub(r'[^\x00-\x7F]+', '?', text)
+    return cleaned.strip()
 
 @app.route("/", methods=["GET", "POST"])
 def bridge_handler():
@@ -27,8 +38,8 @@ def bridge_handler():
             prompt = (
                 "You are a precise engineering and scientific calculator. "
                 f"Evaluate this expression and explain the solution step-by-step: {user_expression}. "
-                "Use PLAIN TEXT ONLY. Do NOT use markdown asterisks (*), hashtags, "
-                "bold formatting, backticks, or LaTeX math blocks."
+                "Use PLAIN ASCII TEXT ONLY. Do NOT use markdown asterisks (*), hashtags, "
+                "bold formatting, backticks, bullet points, or LaTeX math blocks."
             )
             
             headers = {
@@ -55,7 +66,7 @@ def bridge_handler():
                 "You are a concise engineering calculator. "
                 "Analyze the equation or circuit diagram in this image "
                 "and provide a step-by-step numerical solution. "
-                "Use PLAIN TEXT ONLY. No markdown, asterisks, or LaTeX."
+                "Use PLAIN ASCII TEXT ONLY. No markdown, asterisks, bullets, or LaTeX."
             )
             
             headers = {
@@ -77,7 +88,7 @@ def bridge_handler():
                 ]
             }
 
-        # Send request to OpenRouter API with robust NoneType safety checks
+        # Send request to OpenRouter API with safety checks
         try:
             or_response = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions", 
@@ -87,17 +98,16 @@ def bridge_handler():
             )
             res_json = or_response.json()
             
-            # Safely extract content to prevent NoneType crash
             choices = res_json.get("choices")
             if choices and len(choices) > 0:
                 message = choices[0].get("message", {})
                 content = message.get("content")
                 if content:
-                    solution_text = content.strip()
+                    solution_text = clean_for_display(content)
                 else:
                     solution_text = "Error: Model returned empty content."
             else:
-                solution_text = f"API Error: Invalid response structure -> {res_json}"
+                solution_text = f"API Error: Invalid response structure"
                 
         except Exception as e:
             solution_text = f"API Error: {str(e)}"
