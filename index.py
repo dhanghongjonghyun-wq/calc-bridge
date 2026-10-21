@@ -54,12 +54,10 @@ def bridge_handler():
                 if not user_expression:
                     return "No expression", 200
                 
+                # Optimized prompt for calc mode: outputs clean, single-line calculation results without breaking parser
                 prompt = (
-                    f"Solve directly and concisely: {user_expression}. "
-                    "Give short steps and the final answer. Plain text only, no markdown. "
-                    "CRITICAL MULTIPLICATION & EXPONENTS: Always use explicit multiplication signs (*) and standard exponent notation (* or ^). Never omit operators or use spaces between numbers for multiplication. "
-                    "CRITICAL TRIGONOMETRY: Always treat angle inputs for trig functions as DEGREES for the step-by-step work. "
-                    "For the Final Answer, provide the degree-based answer followed immediately by the equivalent radian answer in parentheses (e.g., Final Answer: X deg (Y rad)). Do not include separate formula steps for radians."
+                    f"Evaluate this math expression directly: {user_expression}. "
+                    "Return ONLY the final numerical answer or a short single-line evaluation. Plain text only, no markdown, no multi-line steps, no conversational filler."
                 )
                 
                 payload = {
@@ -73,7 +71,7 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = "Analyze this image and provide a short numerical solution in plain text with explicit operators, handling exponents and trig functions correctly."
+                prompt = "Analyze this image and provide a short numerical solution in plain text."
                 
                 payload = {
                     "contents": [{
