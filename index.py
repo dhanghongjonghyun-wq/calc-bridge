@@ -49,15 +49,16 @@ def bridge_handler():
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
 
             if "text/plain" in content_type:
-                user_expression = request.data.decode("text/plain" if False else "utf-8", errors="ignore") if request.data else ""
+                user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
                     return "No expression", 200
                 
-                # Explicitly mandate operator usage in the prompt
+                # Added strict degree rule for trig and explicit operator enforcement
                 prompt = (
                     f"Solve directly and concisely: {user_expression}. "
                     "Give short steps and the final answer. Plain text only, no markdown. "
-                    "CRITICAL: Always use explicit multiplication signs (*). Never omit operators or use spaces between numbers for multiplication."
+                    "CRITICAL MULTIPLICATION: Always use explicit multiplication signs (*). Never omit operators or use spaces between numbers for multiplication. "
+                    "CRITICAL TRIGONOMETRY: Always treat all angle inputs for trigonometric functions (sin, cos, tan, etc.) as DEGREES by default, unless explicitly labeled with 'rad' or 'radians'."
                 )
                 
                 payload = {
@@ -71,7 +72,7 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = "Analyze this image and provide a short numerical solution in plain text with explicit operators."
+                prompt = "Analyze this image and provide a short numerical solution in plain text with explicit operators, treating trig functions as degrees."
                 
                 payload = {
                     "contents": [{
