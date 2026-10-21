@@ -7,7 +7,7 @@ from flask import Flask, request
 app = Flask(__name__)
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-latest_chat_history = "No calculations performed yet."
+latest_chat_history = "Ready"
 
 def clean_for_display(text):
     if not text:
@@ -28,50 +28,37 @@ def bridge_handler():
         try:
             content_type = request.headers.get("Content-Type", "")
             
-            # Case 1: Text Query from AI Calculator Mode
             if "text/plain" in content_type:
                 user_expression = request.data.decode("utf-8") if request.data else ""
                 if not user_expression:
-                    return "No expression received", 400
+                    return "No expression", 400
                     
                 prompt = (
-                    "You are a precise engineering and scientific calculator. "
-                    f"Evaluate this expression and explain the solution step-by-step: {user_expression}. "
-                    "Use PLAIN ASCII TEXT ONLY. Do NOT use markdown asterisks (*), hashtags, "
-                    "bold formatting, backticks, bullet points, or LaTeX math blocks."
+                    "Provide a direct, step-by-step engineering solution for this expression: "
+                    f"{user_expression}. Use plain ASCII text only. No markdown, asterisks, or LaTeX."
                 )
-                
                 payload = {
-                    "model": "openrouter/free",  # Universal free auto-router (never runs out of endpoints)
-                    "max_tokens": 1024,
+                    "model": "openrouter/free",
+                    "max_tokens": 512,
                     "messages": [{"role": "user", "content": prompt}]
                 }
-                
-            # Case 2: Image Query from OV5640 Camera Mode
             else:
                 image_bytes = request.data
                 if not image_bytes:
-                    return "No image data received", 400
+                    return "No image", 400
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                image_data_url = f"data:image/jpeg;base64,{base64_image}"
-                
-                prompt = (
-                    "You are a concise engineering calculator. "
-                    "Analyze the equation or circuit diagram in this image "
-                    "and provide a step-by-step numerical solution. "
-                    "Use PLAIN ASCII TEXT ONLY. No markdown, asterisks, bullets, or LaTeX."
-                )
+                prompt = "Analyze this engineering problem and provide a direct step-by-step numerical solution in plain ASCII text."
                 
                 payload = {
                     "model": "openrouter/free", 
-                    "max_tokens": 1024,
+                    "max_tokens": 512,
                     "messages": [
                         {
                             "role": "user",
                             "content": [
                                 {"type": "text", "text": prompt},
-                                {"type": "image_url", "image_url": {"url": image_data_url}}
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                             ]
                         }
                     ]
@@ -82,32 +69,20 @@ def bridge_handler():
                 "Content-Type": "application/json"
             }
 
-            or_response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions", 
-                headers=headers, 
-                json=payload, 
-                timeout=40
-            )
-            
+            or_response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
             res_json = or_response.json()
             
             if "error" in res_json:
-                err_msg = res_json['error'].get('message', 'Unknown OpenRouter Error')
-                return f"API Error: {err_msg}", 200
+                return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
 
             choices = res_json.get("choices")
-            if choices and len(choices) > 0:
-                message = choices[0].get("message", {})
-                content = message.get("content")
-                if content:
-                    solution_text = clean_for_display(content)
-                else:
-                    solution_text = "Error: Model returned empty content."
+            if choices and choices[0].get("message", {}).get("content"):
+                solution_text = clean_for_display(choices[0]["message"]["content"])
             else:
-                solution_text = f"API Error: Invalid response structure"
+                solution_text = "Error: Empty response"
                 
         except Exception as e:
-            solution_text = f"Bridge Exception: {str(e)}"
+            solution_text = f"Error: {str(e)}"
         
         latest_chat_history = solution_text
         return solution_text, 200
