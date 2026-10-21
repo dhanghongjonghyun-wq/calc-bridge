@@ -13,18 +13,12 @@ def clean_for_display(text):
     if not text:
         return "No text returned"
     
-    # Replace common unicode symbols that crash TFT font tables
     text = text.replace("•", "-").replace("—", "-").replace("–", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
     text = text.replace("≈", "=")
-    
-    # Strip markdown bold/italics asterisks completely
     text = text.replace("**", "").replace("*", "")
     
-    # Remove any other non-ASCII characters that slip through
     cleaned = re.sub(r'[^\x00-\x7F]+', ' ', text)
-    
-    # Clean up excess whitespace
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
     return cleaned
 
@@ -43,19 +37,18 @@ def bridge_handler():
                 "openrouter/free"
             ]
 
-            # Aggressive system/prompt instruction to prevent markdown and symbols
-            formatting_rule = " STRICT REQUIREMENT: Output raw plain text only. Do NOT use markdown formatting, asterisks, bold tags, or special symbols like approx signs. Use standard equals (=) or plain text."
+            formatting_rule = " STRICT REQUIREMENT: Plain text only. No markdown, asterisks, bold tags, or approx symbols."
 
             if "text/plain" in content_type:
                 user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
                     return "No expression", 200
                 
-                prompt = f"Solve directly and concisely: {user_expression}. Short numbers and steps only.{formatting_rule}"
+                prompt = f"Solve concisely: {user_expression}. Short steps and final answer only.{formatting_rule}"
                 
                 payload = {
                     "models": backup_models,
-                    "max_tokens": 400,
+                    "max_tokens": 200,  # Tightened to prevent length cutoffs
                     "messages": [{"role": "user", "content": prompt}]
                 }
             else:
@@ -64,11 +57,11 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = f"Analyze this image and provide a short numerical solution in plain text.{formatting_rule}"
+                prompt = f"Analyze this image and provide a short numerical solution.{formatting_rule}"
                 
                 payload = {
                     "models": backup_models, 
-                    "max_tokens": 400,
+                    "max_tokens": 200,
                     "messages": [
                         {
                             "role": "user",
@@ -100,6 +93,7 @@ def bridge_handler():
                 if not content:
                     content = choice.get("text", "")
 
+                # Display whatever content came back, even if finish_reason was length
                 if content and len(content.strip()) > 0:
                     solution_text = clean_for_display(content)
                 else:
