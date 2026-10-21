@@ -13,7 +13,6 @@ def clean_for_display(text):
     if not text:
         return "No text returned"
     
-    # Clean math syntax for text displays
     text = text.replace(r"\times", "*").replace(r"\div", "/")
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
@@ -40,7 +39,7 @@ def bridge_handler():
         try:
             content_type = request.headers.get("Content-Type", "")
             
-            # Using Gemini 1.5 Flash native endpoint
+            # Corrected Gemini 1.5 Flash endpoint format
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
             if "text/plain" in content_type:
