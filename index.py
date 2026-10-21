@@ -187,12 +187,10 @@ def telegram_webhook():
     
     try:
         image_url = None
-        # Check if message contains a photo
         if "photo" in message and len(message["photo"]) > 0:
-            photo = message["photo"][-1] # Highest resolution photo
+            photo = message["photo"][-1]
             file_id = photo["file_id"]
             
-            # Get file path from Telegram
             file_info_res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}")
             file_info = file_info_res.json()
             
@@ -203,7 +201,6 @@ def telegram_webhook():
         caption = message.get("caption", message.get("text", "Solve this problem."))
 
         if image_url:
-            # Download image and send to Gemini Vision
             img_res = requests.get(image_url)
             base64_image = base64.b64encode(img_res.content).decode('utf-8')
             
@@ -217,24 +214,30 @@ def telegram_webhook():
                 }]
             }
             
-            gemini_res = requests.post(gemini_url, json=payload, timeout=20).json()
-            candidates = gemini_res.get("candidates", [])
-            if candidates:
-                content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "No response")
-                answer = clean_for_display(content)
+            response = requests.post(gemini_url, json=payload, timeout=20)
+            gemini_res = response.json()
+            
+            if "error" in gemini_res:
+                error_msg = gemini_res['error'].get('message', 'Unknown API Error')
+                print(f"Gemini API Error: {error_msg}")
+                answer = f"API Error: {error_msg}"
             else:
-                answer = "Vision processing failed."
+                candidates = gemini_res.get("candidates", [])
+                if candidates:
+                    content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "No response")
+                    answer = clean_for_display(content)
+                else:
+                    answer = "Vision processing failed: No candidates returned."
                 
             latest_chat_history = answer
             
-            # Send answer back to Telegram chat
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json={
                 "chat_id": chat_id,
                 "text": answer
             })
 
     except Exception as e:
-        print("Webhook Error:", e)
+        print("Webhook Exception Error:", str(e))
 
     return "OK", 200
 
