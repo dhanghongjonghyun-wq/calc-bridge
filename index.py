@@ -71,7 +71,7 @@ def clean_for_display(text):
     
     return "\n".join(cleaned_lines)
 
-# 1. Main ESP32 Endpoint (Handles direct text expressions or image bytes from ESP32)
+# 1. Main ESP32 Endpoint (Handles direct text expressions or image bytes)
 @app.route("/", methods=["GET", "POST"])
 def bridge_handler():
     global latest_chat_history
@@ -92,7 +92,7 @@ def bridge_handler():
                 if direct_result is not None:
                     solution_text = direct_result
                 else:
-                    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+                    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
                     prompt = (
                         f"Solve directly and concisely: {user_expression}. "
                         "Give short steps and the final answer. Plain text only, no markdown. "
@@ -130,7 +130,7 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
                 prompt = "Analyze this image and provide a short numerical solution in plain text."
                 
                 payload = {
@@ -173,7 +173,7 @@ def bridge_handler():
         latest_chat_history = solution_text
         return solution_text, 200
 
-# 2. Telegram Webhook Endpoint (Receives photos/messages from Telegram bot)
+# 2. Telegram Webhook Endpoint
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
     global latest_chat_history
@@ -204,7 +204,7 @@ def telegram_webhook():
             img_res = requests.get(image_url)
             base64_image = base64.b64encode(img_res.content).decode('utf-8')
             
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
             payload = {
                 "contents": [{
                     "parts": [
