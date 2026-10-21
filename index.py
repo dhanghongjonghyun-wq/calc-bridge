@@ -36,7 +36,7 @@ def bridge_handler():
                 prompt = f"Solve this math expression directly and concisely: {user_expression}. Give the final numerical answer and brief steps in plain text only."
                 
                 payload = {
-                    "model": "google/gemma-2-9b-it:free",  # Specific non-reasoning free model to avoid blank length traps
+                    "model": "google/gemma-4-31b-it:free",  # Active free multimodal model
                     "max_tokens": 400,
                     "messages": [{"role": "user", "content": prompt}]
                 }
@@ -49,7 +49,7 @@ def bridge_handler():
                 prompt = "Analyze this image and provide a short numerical solution in plain text."
                 
                 payload = {
-                    "model": "google/gemma-2-9b-it:free", 
+                    "model": "google/gemma-4-31b-it:free", 
                     "max_tokens": 400,
                     "messages": [
                         {
@@ -79,7 +79,6 @@ def bridge_handler():
                 message = choice.get("message", {})
                 content = message.get("content")
                 
-                # Fallback check if content is buried in reasoning or text field
                 if not content:
                     content = choice.get("text", "")
 
