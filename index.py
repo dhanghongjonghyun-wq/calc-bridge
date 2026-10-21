@@ -33,12 +33,11 @@ def bridge_handler():
                 if not user_expression:
                     return "No expression", 200
                 
-                # Strict, concise prompt to prevent length cutoffs
-                prompt = f"Solve: {user_expression}. Output direct final answer and short numbers only. Plain text."
+                prompt = f"Solve this math expression directly and concisely: {user_expression}. Give the final numerical answer and brief steps in plain text only."
                 
                 payload = {
-                    "model": "openrouter/free",
-                    "max_tokens": 300,  # Keeps it well within free tier output limits
+                    "model": "google/gemma-2-9b-it:free",  # Specific non-reasoning free model to avoid blank length traps
+                    "max_tokens": 400,
                     "messages": [{"role": "user", "content": prompt}]
                 }
             else:
@@ -47,11 +46,11 @@ def bridge_handler():
                     return "No image", 200
 
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                prompt = "Solve this problem. Short numerical answer only. Plain text."
+                prompt = "Analyze this image and provide a short numerical solution in plain text."
                 
                 payload = {
-                    "model": "openrouter/free", 
-                    "max_tokens": 300,
+                    "model": "google/gemma-2-9b-it:free", 
+                    "max_tokens": 400,
                     "messages": [
                         {
                             "role": "user",
@@ -76,11 +75,18 @@ def bridge_handler():
 
             choices = res_json.get("choices", [])
             if choices:
-                content = choices[0].get("message", {}).get("content")
-                if content:
+                choice = choices[0]
+                message = choice.get("message", {})
+                content = message.get("content")
+                
+                # Fallback check if content is buried in reasoning or text field
+                if not content:
+                    content = choice.get("text", "")
+
+                if content and len(content.strip()) > 0:
                     solution_text = clean_for_display(content)
                 else:
-                    solution_text = f"Model Blank (Reason: {choices[0].get('finish_reason', 'unknown')})"
+                    solution_text = f"Model Blank (Reason: {choice.get('finish_reason', 'unknown')})"
             else:
                 solution_text = "API Error: No choices"
                 
