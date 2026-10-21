@@ -25,74 +25,75 @@ def bridge_handler():
         return latest_chat_history, 200
 
     if request.method == "POST":
-        content_type = request.headers.get("Content-Type", "")
-        
-        # Case 1: Text Query from AI Calculator Mode
-        if "text/plain" in content_type:
-            user_expression = request.data.decode("utf-8")
-            if not user_expression:
-                return "No expression received", 400
-                
-            prompt = (
-                "You are a precise engineering and scientific calculator. "
-                f"Evaluate this expression and explain the solution step-by-step: {user_expression}. "
-                "Use PLAIN ASCII TEXT ONLY. Do NOT use markdown asterisks (*), hashtags, "
-                "bold formatting, backticks, bullet points, or LaTeX math blocks."
-            )
-            
-            payload = {
-                "model": "google/gemma-4-31b-it:free",  # Stable free multimodal model
-                "max_tokens": 1024,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-            
-        # Case 2: Image Query from OV5640 Camera Mode
-        else:
-            image_bytes = request.data
-            if not image_bytes:
-                return "No image data received", 400
-
-            base64_image = base64.b64encode(image_bytes).decode('utf-8')
-            image_data_url = f"data:image/jpeg;base64,{base64_image}"
-            
-            prompt = (
-                "You are a concise engineering calculator. "
-                "Analyze the equation or circuit diagram in this image "
-                "and provide a step-by-step numerical solution. "
-                "Use PLAIN ASCII TEXT ONLY. No markdown, asterisks, bullets, or LaTeX."
-            )
-            
-            payload = {
-                "model": "google/gemma-4-31b-it:free", 
-                "max_tokens": 1024,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": image_data_url}}
-                        ]
-                    }
-                ]
-            }
-
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
         try:
+            content_type = request.headers.get("Content-Type", "")
+            
+            # Case 1: Text Query from AI Calculator Mode
+            if "text/plain" in content_type:
+                user_expression = request.data.decode("utf-8") if request.data else ""
+                if not user_expression:
+                    return "No expression received", 400
+                    
+                prompt = (
+                    "You are a precise engineering and scientific calculator. "
+                    f"Evaluate this expression and explain the solution step-by-step: {user_expression}. "
+                    "Use PLAIN ASCII TEXT ONLY. Do NOT use markdown asterisks (*), hashtags, "
+                    "bold formatting, backticks, bullet points, or LaTeX math blocks."
+                )
+                
+                payload = {
+                    "model": "meta-llama/llama-3-8b-instruct:free",  # Stable free model
+                    "max_tokens": 1024,
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+                
+            # Case 2: Image Query from OV5640 Camera Mode
+            else:
+                image_bytes = request.data
+                if not image_bytes:
+                    return "No image data received", 400
+
+                base64_image = base64.b64encode(image_bytes).decode('utf-8')
+                image_data_url = f"data:image/jpeg;base64,{base64_image}"
+                
+                prompt = (
+                    "You are a concise engineering calculator. "
+                    "Analyze the equation or circuit diagram in this image "
+                    "and provide a step-by-step numerical solution. "
+                    "Use PLAIN ASCII TEXT ONLY. No markdown, asterisks, bullets, or LaTeX."
+                )
+                
+                payload = {
+                    "model": "meta-llama/llama-3-8b-instruct:free", 
+                    "max_tokens": 1024,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {"type": "image_url", "image_url": {"url": image_data_url}}
+                            ]
+                        }
+                    ]
+                }
+
+            headers = {
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            }
+
             or_response = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions", 
                 headers=headers, 
                 json=payload, 
                 timeout=40
             )
+            
             res_json = or_response.json()
             
-            # Debug log to Render console if something unexpected happens
             if "error" in res_json:
-                return f"API Error: {res_json['error'].get('message', 'Unknown')}", 500
+                err_msg = res_json['error'].get('message', 'Unknown OpenRouter Error')
+                return f"API Error: {err_msg}", 200 # Return 200 so ESP32 displays the clean error instead of crashing
 
             choices = res_json.get("choices")
             if choices and len(choices) > 0:
@@ -101,9 +102,9 @@ def bridge_handler():
                 if content:
                     solution_text = clean_for_display(content)
                 else:
-                    solution_text = f"Error: Empty content from model. Raw: {res_json}"
+                    solution_text = "Error: Model returned empty content."
             else:
-                solution_text = f"API Error: Invalid response -> {res_json}"
+                solution_text = f"API Error: Invalid response structure"
                 
         except Exception as e:
             solution_text = f"Bridge Exception: {str(e)}"
