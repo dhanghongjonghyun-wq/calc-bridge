@@ -20,22 +20,20 @@ TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 ENGINEERING_PROMPT_TEMPLATE = (
     "User Caption / Request: {caption}\n"
-    "CRITICAL ENGINEERING & CIRCUIT SOLVER INSTRUCTIONS (PROFESSOR-PROOF FORMAT):\n"
-    "1. HIGH-ACCURACY VISUAL OCR & POLARITIES:\n"
-    "   - Double-check voltage source polarities! Long line = Positive (+), Short line = Negative (-).\n"
-    "   - Carefully read written '+' and '-' terminal labels and current source directions.\n"
-    "   - When tracing KVL loops clockwise, entering a negative terminal means -V (potential drop/rise correction).\n"
-    "2. NUMERICAL & FORMATTING RULES (STRICT):\n"
-    "   - DO NOT include fractions (e.g., NO '-50/11', '-14/11', or rational fractions).\n"
-    "   - ALL numerical values, intermediate steps, and final answers MUST be formatted as DECIMALS rounded to EXACTLY TWO DECIMAL PLACES (e.g., -1.27, 4.73, 56.00).\n"
-    "3. STEP-BY-STEP EXPLANATION (PREVENT CONFUSION):\n"
-    "   - Clearly define mesh currents and constraint equations first.\n"
-    "   - Show the full KVL loop breakdown term-by-term so every number is accounted for.\n"
-    "   - Show explicit algebraic substitution steps.\n"
-    "4. OUTPUT FORMAT:\n"
-    "   - Clear headers and structured sections.\n"
-    "   - Final Summary Table with columns: Parameter | Value | Unit.\n"
-    "   - Plain text only. No conversational filler or yapping."
+    "CIRCUIT SOLVER INSTRUCTIONS:\n"
+    "1. ACCURATE POLARITIES & KVL TRACE:\n"
+    "   - Long line = Positive (+), Short line = Negative (-).\n"
+    "   - When tracing clockwise, entering a negative terminal is -V; entering a positive terminal is +V (or use potential rise/drop consistently).\n"
+    "2. FORMATTING RULES:\n"
+    "   - NO conversational filler, no introductory/concluding remarks, and no yapping.\n"
+    "   - List givens compactly (no long paragraphs).\n"
+    "   - NO fractions allowed (e.g. no '-50/11').\n"
+    "   - ALL numerical values and final answers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
+    "3. OUTPUT STRUCTURE:\n"
+    "   - Givens list\n"
+    "   - Constraint Equation\n"
+    "   - Supermesh KVL Equation & Step-by-Step Solution\n"
+    "   - Final Summary Table (Parameter | Value | Unit)"
 )
 
 def evaluate_math_expression(expr):
@@ -73,7 +71,7 @@ def evaluate_math_expression(expr):
         return None
 
 def convert_fractions_to_decimals(text):
-    """Converts standalone fractions like -50/11 or 16/11 to 2-decimal floating point numbers as a failsafe."""
+    """Converts standalone fractions to 2-decimal floating point numbers as a failsafe."""
     def replacer(match):
         num = float(match.group(1))
         den = float(match.group(2))
@@ -88,7 +86,6 @@ def clean_for_display(text):
     if not text:
         return "No text returned"
     
-    # Clean LaTeX math formatting
     text = text.replace(r"\times", "*").replace(r"\div", "/")
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
@@ -99,7 +96,6 @@ def clean_for_display(text):
     text = text.replace("•", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
     
-    # Force conversion of any lingering fractions to two-decimal numbers
     text = convert_fractions_to_decimals(text)
     
     lines = text.split('\n')
@@ -129,12 +125,10 @@ def bridge_handler():
                 else:
                     prompt = (
                         f"Solve directly: {user_expression}. "
-                        "STRICT FORMATTING INSTRUCTIONS:\n"
-                        "- NO introductory or concluding sentences.\n"
-                        "- Round ALL numbers to EXACTLY TWO decimal places. NO fractions.\n"
-                        "- Use structured steps, equations, and summary tables only.\n"
-                        "- Plain text, no conversational filler or yapping.\n"
-                        "- Use explicit multiplication (*) and exponents (^)."
+                        "STRICT FORMATTING:\n"
+                        "- No intro/outro sentences or yapping.\n"
+                        "- Round all numbers to exactly two decimal places. No fractions.\n"
+                        "- Structured steps and summary table only."
                     )
                     payload = {
                         "contents": [{"parts": [{"text": prompt}]}],
@@ -172,7 +166,7 @@ def poll_handler():
     global latest_chat_history
     return latest_chat_history, 200
 
-# 2. Telegram Webhook Endpoint (Receives photos OR uncompressed files)
+# 2. Telegram Webhook Endpoint
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
     global latest_chat_history
