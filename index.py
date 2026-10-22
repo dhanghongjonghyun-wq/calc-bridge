@@ -174,7 +174,7 @@ def bridge_handler():
                         "generationConfig": {
                             "temperature": 0.0,
                             "topP": 0.1,
-                            "maxOutputTokens": 8192
+                            "maxOutputTokens": 65536
                         }
                     }
                     res_json = post_with_retry(GEMINI_API_URL, payload)
@@ -250,7 +250,7 @@ def telegram_webhook():
                         "temperature": 0.0,
                         "topP": 0.1,
                         "topK": 1,
-                        "maxOutputTokens": 8192  # Explicitly prevents cut-offs on long derivations
+                        "maxOutputTokens": 65536  # Set to maximum allowed token limit to completely eliminate cut-offs
                     }
                 }
                 
