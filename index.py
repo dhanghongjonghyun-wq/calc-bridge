@@ -188,17 +188,16 @@ def telegram_webhook():
                 gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
                 
                 prompt = (
-                    f"{caption}\n"
-                    "CRITICAL ENGINEERING SOLVER INSTRUCTIONS:\n"
-                    "1. IDENTIFY THE PROBLEM: Explicitly state 'PROBLEM 1' or 'PROBLEM 2' at the top.\n"
-                    "2. RIGOROUS STATICS RULES:\n"
-                    "   - Verify line connections carefully before setting up equations.\n"
-                    "   - Check sign conventions: Downward forces ALWAYS produce consistent directional signs in moment calculations.\n"
-                    "   - Explicitly write out member angles, sin/cos components, and coordinate steps.\n"
-                    "3. OUTPUT FORMAT:\n"
-                    "   - Clear Problem Title\n"
-                    "   - 1. Support Reactions (ΣFx, ΣFy, ΣM)\n"
-                    "   - 2. Method of Joints (Node by Node)\n"
+                    f"User Caption / Request: {caption}\n"
+                    "CRITICAL ENGINEERING SOLVER & MULTI-PROBLEM INSTRUCTIONS:\n"
+                    "1. NO SKIPPING: If the worksheet contains multiple problems (e.g., Problem 1 AND Problem 2), you MUST solve ALL visible problems completely. Do NOT skip any problem unless explicitly told to in the caption.\n"
+                    "2. SEPARATION: Use clear headers for each (e.g., 'PROBLEM 1' and 'PROBLEM 2').\n"
+                    "3. RIGOROUS STATICS RULES:\n"
+                    "   - Read node dimensions, loads, and angles carefully from the image.\n"
+                    "   - Enforce correct sign conventions for moments (ΣM = 0) and equilibrium (ΣFx = 0, ΣFy = 0).\n"
+                    "4. OUTPUT FORMAT FOR EACH PROBLEM:\n"
+                    "   - Support Reactions\n"
+                    "   - Method of Joints (Step-by-step)\n"
                     "   - Summary Table of Member Forces (Member | Force | State)\n"
                     "- NO conversational filler or yapping."
                 )
@@ -212,7 +211,7 @@ def telegram_webhook():
                     }]
                 }
                 
-                response = requests.post(gemini_url, json=payload, timeout=25)
+                response = requests.post(gemini_url, json=payload, timeout=30)
                 gemini_res = response.json()
                 
                 if "error" in gemini_res:
