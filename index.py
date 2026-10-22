@@ -22,16 +22,16 @@ TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 ENGINEERING_PROMPT_TEMPLATE = (
     "User Caption / Request: {{caption}}\n"
     "CIRCUIT & TRUSS SOLVER INSTRUCTIONS:\n"
-    "1. ACCURATE POLARITIES, KVL, & TRUSS MECHANICS:\n"
+    "1. ACCURATE POLARITIES, KVL, KCL, & TRUSS MECHANICS:\n"
     "   - Long line = Positive (+), Short line = Negative (-).\n"
     "   - When tracing clockwise, entering a negative terminal is -V; entering a positive terminal is +V.\n"
     "   - Note: Entering the negative terminal of the 36V source on top going clockwise is a potential rise (+36V).\n"
     "2. STRICT FORMATTING & STRUCTURE:\n"
     "   - Follow this exact 3-section structure with NO conversational filler, intro/outro remarks, or yapping:\n"
     "     1st Givens\n"
-    "     2nd Step-by-Step Formula Solution (Write out full, expanded steps: KVL trace / moment equations, substitution, distribution, combining terms, solving for variables explicitly).\n"
+    "     2nd Step-by-Step Formula Solution (Write out full, expanded steps: KVL / KCL / moment equations, substitution, distribution, combining terms, solving for variables explicitly).\n"
     "     3rd Final Answers\n"
-    "   - DO NOT use LaTeX formatting like \\cdot, \\text{{}}, \\Omega, or backslashes. Write multiplication explicitly with '*' or spaces, and units plainly (e.g., 20.00 V, 8.00 ohms, kN, A).\n"
+    "   - DO NOT use LaTeX formatting like \\cdot, \\text{{}}, \\Omega, or backslashes. Write multiplication explicitly with '*' or spaces, and units plainly (e.g., 20.00 V, 8.00 ohms, kN, A, W).\n"
     "   - NO fractions allowed.\n"
     "   - ALL numerical values and final answers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
     "   - NEVER write malformed numbers or duplicate decimal points (e.g., write '-100.00', never '-100.0.00.00').\n"
@@ -42,7 +42,7 @@ def post_with_retry(url, json_payload, retries=3, backoff=2):
     """Sends a POST request to Gemini with automatic retries if high demand or temporary errors occur."""
     for attempt in range(retries):
         try:
-            response = session.post(url, json=json_payload, timeout=25)
+            response = session.post(url, json=json_payload, timeout=30)
             res_json = response.json()
             
             if "error" in res_json:
@@ -173,7 +173,8 @@ def bridge_handler():
                         "contents": [{"parts": [{"text": prompt}]}],
                         "generationConfig": {
                             "temperature": 0.0,
-                            "topP": 0.1
+                            "topP": 0.1,
+                            "maxOutputTokens": 8192
                         }
                     }
                     res_json = post_with_retry(GEMINI_API_URL, payload)
@@ -248,7 +249,8 @@ def telegram_webhook():
                     "generationConfig": {
                         "temperature": 0.0,
                         "topP": 0.1,
-                        "topK": 1
+                        "topK": 1,
+                        "maxOutputTokens": 8192  # Explicitly prevents cut-offs on long derivations
                     }
                 }
                 
@@ -279,4 +281,3 @@ def telegram_webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-            
