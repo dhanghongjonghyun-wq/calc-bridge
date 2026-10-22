@@ -14,23 +14,26 @@ latest_chat_history = "Ready. Send an image to Telegram!"
 # Persistent session for faster API requests
 session = requests.Session()
 
-# Updated to use gemini-3.6-flash
+# Updated model endpoint
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
 TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 ENGINEERING_PROMPT_TEMPLATE = (
     "User Caption / Request: {caption}\n"
-    "CRITICAL ENGINEERING SOLVER & MULTI-PROBLEM INSTRUCTIONS:\n"
-    "1. NO SKIPPING: If the worksheet contains multiple problems (e.g., Problem 1 AND Problem 2), you MUST solve ALL visible problems completely. Do NOT skip any problem.\n"
-    "2. SEPARATION: Use clear headers for each (e.g., 'PROBLEM 1' and 'PROBLEM 2').\n"
-    "3. RIGOROUS STATICS RULES:\n"
-    "   - Read node dimensions, loads, and angles carefully from the image.\n"
-    "   - Enforce correct sign conventions for moments (ΣM = 0) and equilibrium (ΣFx = 0, ΣFy = 0).\n"
-    "4. OUTPUT FORMAT FOR EACH PROBLEM:\n"
-    "   - Support Reactions\n"
-    "   - Method of Joints (Step-by-step)\n"
-    "   - Summary Table of Member Forces (Member | Force | State)\n"
-    "- NO conversational filler or yapping."
+    "CRITICAL ENGINEERING & CIRCUIT SOLVER INSTRUCTIONS:\n"
+    "1. ACCURATE COMPONENT OCR:\n"
+    "   - Double-check battery and voltage source polarities! (Long line = Positive +, Short line = Negative -).\n"
+    "   - Pay exact attention to arrow directions on current sources.\n"
+    "   - Read resistor values, node labels, and loop orientations carefully.\n"
+    "2. NO SKIPPING: If the image contains multiple problems, solve ALL visible problems completely.\n"
+    "3. CIRCUIT & STATICS RULES:\n"
+    "   - Apply KVL / KCL / Supermesh rules rigorously.\n"
+    "   - When tracing KVL loops clockwise, entering a negative terminal means -V (or potential rise if using rise/fall convention). Be consistent.\n"
+    "4. OUTPUT FORMAT:\n"
+    "   - Define mesh/branch variables clearly.\n"
+    "   - Show Constraint Equations and Supermesh KVL equations step-by-step.\n"
+    "   - Provide final values in fractional and decimal formats in a clean summary table.\n"
+    "   - Plain text only. No conversational filler or yapping."
 )
 
 def evaluate_math_expression(expr):
@@ -76,9 +79,8 @@ def clean_for_display(text):
     text = text.replace(r"\boxed", "").replace("{", "").replace("}", "")
     text = text.replace("---", "").replace("###", "")
     text = re.sub(r'\\[a-zA-Z]+', '', text)
-    text = text.replace("•", "-").replace("—", "-").replace("–", "-")
+    text = text.replace("•", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
-    text = re.sub(r'(\d+)\s+(\d+\.\d+)\s*=', r'\1 * \2 =', text)
     
     lines = text.split('\n')
     cleaned_lines = [re.sub(r'[^\x00-\x7F]+', ' ', line) for line in lines]
@@ -115,7 +117,10 @@ def bridge_handler():
                     )
                     payload = {
                         "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {"temperature": 0.0}
+                        "generationConfig": {
+                            "temperature": 0.0,
+                            "topP": 0.1
+                        }
                     }
                     response = session.post(GEMINI_API_URL, json=payload, timeout=15)
                     res_json = response.json()
@@ -188,7 +193,9 @@ def telegram_webhook():
                         ]
                     }],
                     "generationConfig": {
-                        "temperature": 0.0  # Zero creativity to prevent number hallucination
+                        "temperature": 0.0,
+                        "topP": 0.1,
+                        "topK": 1
                     }
                 }
                 
