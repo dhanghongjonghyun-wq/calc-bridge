@@ -14,25 +14,25 @@ latest_chat_history = "Ready. Send an image to Telegram!"
 # Persistent session for faster API requests
 session = requests.Session()
 
-# Updated model endpoint
+# Model Endpoint
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
 TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 ENGINEERING_PROMPT_TEMPLATE = (
     "User Caption / Request: {caption}\n"
-    "CRITICAL ENGINEERING & CIRCUIT SOLVER INSTRUCTIONS:\n"
-    "1. ACCURATE COMPONENT OCR:\n"
-    "   - Double-check battery and voltage source polarities! (Long line = Positive +, Short line = Negative -).\n"
-    "   - Pay exact attention to arrow directions on current sources.\n"
-    "   - Read resistor values, node labels, and loop orientations carefully.\n"
-    "2. NO SKIPPING: If the image contains multiple problems, solve ALL visible problems completely.\n"
-    "3. CIRCUIT & STATICS RULES:\n"
-    "   - Apply KVL / KCL / Supermesh rules rigorously.\n"
-    "   - When tracing KVL loops clockwise, entering a negative terminal means -V (or potential rise if using rise/fall convention). Be consistent.\n"
+    "CRITICAL ENGINEERING, CIRCUIT & STATICS SOLVER INSTRUCTIONS:\n"
+    "1. HIGH-ACCURACY VISUAL OCR & POLARITIES:\n"
+    "   - Double-check voltage source polarities! Long line = Positive (+), Short line = Negative (-).\n"
+    "   - Look closely at written '+' and '-' symbols near terminals.\n"
+    "   - When performing KVL around a loop clockwise, entering a negative terminal means -V (or potential rise if using rise/fall convention).\n"
+    "   - Check arrow directions on current sources and node values carefully.\n"
+    "2. NUMERICAL FORMATTING (STRICT RULES):\n"
+    "   - DO NOT include fractions (e.g., NO '-50/11' or '-14/11').\n"
+    "   - ALL numerical values and final answers MUST be formatted as DECIMALS rounded to EXACTLY TWO DECIMAL PLACES (e.g., -4.55, 1.45).\n"
+    "3. NO SKIPPING: Solve ALL visible problems completely.\n"
     "4. OUTPUT FORMAT:\n"
-    "   - Define mesh/branch variables clearly.\n"
-    "   - Show Constraint Equations and Supermesh KVL equations step-by-step.\n"
-    "   - Provide final values in fractional and decimal formats in a clean summary table.\n"
+    "   - Clear equations and step-by-step logic.\n"
+    "   - Final Summary Table with columns: Parameter | Value | Unit.\n"
     "   - Plain text only. No conversational filler or yapping."
 )
 
@@ -62,16 +62,32 @@ def evaluate_math_expression(expr):
                 safe_dict[name] = getattr(math, name)
         
         result = eval(cleaned, {"__builtins__": {}}, safe_dict)
-        if isinstance(result, float) and result.is_integer():
-            result = int(result)
+        if isinstance(result, float):
+            result = round(result, 2)
+            if result.is_integer():
+                result = int(result)
         return str(result)
     except Exception:
         return None
+
+def convert_fractions_to_decimals(text):
+    """Converts standalone fractions like -50/11 or 16/11 to 2-decimal floating point numbers."""
+    def replacer(match):
+        num = float(match.group(1))
+        den = float(match.group(2))
+        if den == 0:
+            return match.group(0)
+        val = num / den
+        return f"{val:.2f}"
+    
+    # Matches patterns like -50/11, 16/11, 400/11
+    return re.sub(r'(-?\d+)\s*/\s*(\d+)', replacer, text)
 
 def clean_for_display(text):
     if not text:
         return "No text returned"
     
+    # Clean LaTeX math formatting
     text = text.replace(r"\times", "*").replace(r"\div", "/")
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
@@ -81,6 +97,9 @@ def clean_for_display(text):
     text = re.sub(r'\\[a-zA-Z]+', '', text)
     text = text.replace("•", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
+    
+    # Convert any lingering fractions to 2 decimal places
+    text = convert_fractions_to_decimals(text)
     
     lines = text.split('\n')
     cleaned_lines = [re.sub(r'[^\x00-\x7F]+', ' ', line) for line in lines]
@@ -111,6 +130,7 @@ def bridge_handler():
                         f"Solve directly: {user_expression}. "
                         "STRICT FORMATTING INSTRUCTIONS:\n"
                         "- NO introductory or concluding sentences.\n"
+                        "- Round ALL final numbers to TWO decimal places. NO fractions.\n"
                         "- Use structured steps, equations, and summary tables only.\n"
                         "- Plain text, no conversational filler or yapping.\n"
                         "- Use explicit multiplication (*) and exponents (^)."
