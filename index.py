@@ -179,16 +179,19 @@ def telegram_webhook():
             
             prompt = (
                 f"{caption}\n"
-                "CRITICAL ENGINEERING SOLVER INSTRUCTIONS:\n"
-                "You are an expert structural engineer. Solve this truss problem with 100% mathematical precision. Do not skip steps or guess numbers.\n\n"
-                "Follow this exact verification sequence:\n"
-                "1. GEOMETRY & TRIGONOMETRY: Explicitly list node coordinates, member lengths, and angle components (sin/cos) before doing any force math.\n"
-                "2. SUPPORT REACTIONS: Write out full ΣFx = 0, ΣFy = 0, and ΣM = 0 equations and solve them algebraically first.\n"
-                "3. METHOD OF JOINTS: Solve node by node sequentially. State equilibrium components clearly for every member.\n"
-                "4. FORMATTING & LAYOUT:\n"
-                "- NO introductory or concluding sentences.\n"
-                "- Use clean headings for Support Reactions and Method of Joints.\n"
-                "- End with a clean Summary Table of Member Forces indicating Force value and Tension (T) or Compression (C)."
+                "CRITICAL INSTRUCTIONS FOR MULTI-PROBLEM WORKSHEETS:\n"
+                "1. IDENTIFY THE PROBLEM: Explicitly state 'PROBLEM 1' or 'PROBLEM 2' at the very top of your output based on what is shown/requested.\n"
+                "2. NO MIXING: Solve ONLY the single requested problem. If both are present without a specific request, state 'PROBLEM 1' and solve it, then state 'PROBLEM 2' and solve it separately.\n"
+                "3. RIGOROUS STATICS RULES:\n"
+                "   - Verify line connections carefully before setting up equations.\n"
+                "   - Check sign conventions: Downward forces ALWAYS produce consistent directional signs in moment calculations relative to positive rotations.\n"
+                "   - Explicitly write out member angles, sin/cos components, and coordinate steps.\n"
+                "4. OUTPUT FORMAT:\n"
+                "   - Clear Problem Title\n"
+                "   - 1. Support Reactions (ΣFx, ΣFy, ΣM)\n"
+                "   - 2. Method of Joints (Node by Node)\n"
+                "   - Summary Table of Member Forces (Member | Force | State)\n"
+                "- NO conversational filler or yapping."
             )
 
             payload = {
