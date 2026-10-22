@@ -23,10 +23,11 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "CIRCUIT SOLVER INSTRUCTIONS:\n"
     "1. ACCURATE POLARITIES & KVL TRACE:\n"
     "   - Long line = Positive (+), Short line = Negative (-).\n"
-    "   - When tracing clockwise, entering a negative terminal is -V; entering a positive terminal is +V (or use potential rise/drop consistently).\n"
+    "   - When tracing clockwise, entering a negative terminal is -V; entering a positive terminal is +V.\n"
     "2. FORMATTING RULES:\n"
+    "   - Do not use raw LaTeX backslashes for units. Write resistance units as ohms (e.g., 8.00 ohms).\n"
     "   - NO conversational filler, no introductory/concluding remarks, and no yapping.\n"
-    "   - List givens compactly (no long paragraphs).\n"
+    "   - List givens compactly.\n"
     "   - NO fractions allowed (e.g. no '-50/11').\n"
     "   - ALL numerical values and final answers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
     "3. OUTPUT STRUCTURE:\n"
@@ -86,13 +87,20 @@ def clean_for_display(text):
     if not text:
         return "No text returned"
     
+    # Automatically convert LaTeX ohm commands or lingering backslashes into 'ohms'
+    text = re.sub(r'\\Omega\b', 'ohms', text, flags=re.IGNORECASE)
+    text = re.sub(r'\\omega\b', 'ohms', text, flags=re.IGNORECASE)
+    text = re.sub(r'\\([a-zA-Z]+)', r'\1', text)
+    
+    # Clean standard LaTeX math formatting
     text = text.replace(r"\times", "*").replace(r"\div", "/")
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
     text = text.replace("$$", "").replace("$", "").replace("**", "")
     text = text.replace(r"\boxed", "").replace("{", "").replace("}", "")
     text = text.replace("---", "").replace("###", "")
-    text = re.sub(r'\\[a-zA-Z]+', '', text)
+    text = text.replace("\\", "")  # Strip any remaining stray backslashes
+    
     text = text.replace("•", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
     
@@ -126,9 +134,9 @@ def bridge_handler():
                     prompt = (
                         f"Solve directly: {user_expression}. "
                         "STRICT FORMATTING:\n"
+                        "- No backslashes or LaTeX symbols.\n"
                         "- No intro/outro sentences or yapping.\n"
-                        "- Round all numbers to exactly two decimal places. No fractions.\n"
-                        "- Structured steps and summary table only."
+                        "- Round all numbers to exactly two decimal places. No fractions."
                     )
                     payload = {
                         "contents": [{"parts": [{"text": prompt}]}],
