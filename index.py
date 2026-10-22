@@ -24,8 +24,9 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "1. ACCURATE POLARITIES & KVL TRACE:\n"
     "   - Long line = Positive (+), Short line = Negative (-).\n"
     "   - When tracing clockwise, entering a negative terminal is -V; entering a positive terminal is +V.\n"
+    "   - Note: If a voltage source has its negative terminal on top/facing the loop trace, entering it is a potential rise (+V).\n"
     "2. FORMATTING RULES:\n"
-    "   - Do not use raw LaTeX backslashes for units. Write resistance units as ohms (e.g., 8.00 ohms).\n"
+    "   - NEVER use LaTeX text commands like \\text{...} or \\Omega. Write values and units plainly (e.g., 20.00 V, 8.00 ohms, 6.00 A).\n"
     "   - NO conversational filler, no introductory/concluding remarks, and no yapping.\n"
     "   - List givens compactly.\n"
     "   - NO fractions allowed (e.g. no '-50/11').\n"
@@ -87,6 +88,9 @@ def clean_for_display(text):
     if not text:
         return "No text returned"
     
+    # Clean up LaTeX text wrappers like \text{ V} or \text{ A} into just the text inside
+    text = re.sub(r'\\text\{([^}]+)\}', r'\1', text)
+    
     # Automatically convert LaTeX ohm commands or lingering backslashes into 'ohms'
     text = re.sub(r'\\Omega\b', 'ohms', text, flags=re.IGNORECASE)
     text = re.sub(r'\\omega\b', 'ohms', text, flags=re.IGNORECASE)
@@ -134,7 +138,7 @@ def bridge_handler():
                     prompt = (
                         f"Solve directly: {user_expression}. "
                         "STRICT FORMATTING:\n"
-                        "- No backslashes or LaTeX symbols.\n"
+                        "- No backslashes, LaTeX text blocks, or symbols.\n"
                         "- No intro/outro sentences or yapping.\n"
                         "- Round all numbers to exactly two decimal places. No fractions."
                     )
