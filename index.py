@@ -20,18 +20,20 @@ TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 ENGINEERING_PROMPT_TEMPLATE = (
     "User Caption / Request: {caption}\n"
-    "CRITICAL ENGINEERING, CIRCUIT & STATICS SOLVER INSTRUCTIONS:\n"
+    "CRITICAL ENGINEERING & CIRCUIT SOLVER INSTRUCTIONS (PROFESSOR-PROOF FORMAT):\n"
     "1. HIGH-ACCURACY VISUAL OCR & POLARITIES:\n"
     "   - Double-check voltage source polarities! Long line = Positive (+), Short line = Negative (-).\n"
-    "   - Look closely at written '+' and '-' symbols near terminals.\n"
-    "   - When performing KVL around a loop clockwise, entering a negative terminal means -V (or potential rise if using rise/fall convention).\n"
-    "   - Check arrow directions on current sources and node values carefully.\n"
-    "2. NUMERICAL FORMATTING (STRICT RULES):\n"
-    "   - DO NOT include fractions (e.g., NO '-50/11' or '-14/11').\n"
-    "   - ALL numerical values and final answers MUST be formatted as DECIMALS rounded to EXACTLY TWO DECIMAL PLACES (e.g., -4.55, 1.45).\n"
-    "3. NO SKIPPING: Solve ALL visible problems completely.\n"
+    "   - Carefully read written '+' and '-' terminal labels and current source directions.\n"
+    "   - When tracing KVL loops clockwise, entering a negative terminal means -V (potential drop/rise correction).\n"
+    "2. NUMERICAL & FORMATTING RULES (STRICT):\n"
+    "   - DO NOT include fractions (e.g., NO '-50/11', '-14/11', or rational fractions).\n"
+    "   - ALL numerical values, intermediate steps, and final answers MUST be formatted as DECIMALS rounded to EXACTLY TWO DECIMAL PLACES (e.g., -1.27, 4.73, 56.00).\n"
+    "3. STEP-BY-STEP EXPLANATION (PREVENT CONFUSION):\n"
+    "   - Clearly define mesh currents and constraint equations first.\n"
+    "   - Show the full KVL loop breakdown term-by-term so every number is accounted for.\n"
+    "   - Show explicit algebraic substitution steps.\n"
     "4. OUTPUT FORMAT:\n"
-    "   - Clear equations and step-by-step logic.\n"
+    "   - Clear headers and structured sections.\n"
     "   - Final Summary Table with columns: Parameter | Value | Unit.\n"
     "   - Plain text only. No conversational filler or yapping."
 )
@@ -71,7 +73,7 @@ def evaluate_math_expression(expr):
         return None
 
 def convert_fractions_to_decimals(text):
-    """Converts standalone fractions like -50/11 or 16/11 to 2-decimal floating point numbers."""
+    """Converts standalone fractions like -50/11 or 16/11 to 2-decimal floating point numbers as a failsafe."""
     def replacer(match):
         num = float(match.group(1))
         den = float(match.group(2))
@@ -80,7 +82,6 @@ def convert_fractions_to_decimals(text):
         val = num / den
         return f"{val:.2f}"
     
-    # Matches patterns like -50/11, 16/11, 400/11
     return re.sub(r'(-?\d+)\s*/\s*(\d+)', replacer, text)
 
 def clean_for_display(text):
@@ -98,7 +99,7 @@ def clean_for_display(text):
     text = text.replace("•", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
     
-    # Convert any lingering fractions to 2 decimal places
+    # Force conversion of any lingering fractions to two-decimal numbers
     text = convert_fractions_to_decimals(text)
     
     lines = text.split('\n')
@@ -130,7 +131,7 @@ def bridge_handler():
                         f"Solve directly: {user_expression}. "
                         "STRICT FORMATTING INSTRUCTIONS:\n"
                         "- NO introductory or concluding sentences.\n"
-                        "- Round ALL final numbers to TWO decimal places. NO fractions.\n"
+                        "- Round ALL numbers to EXACTLY TWO decimal places. NO fractions.\n"
                         "- Use structured steps, equations, and summary tables only.\n"
                         "- Plain text, no conversational filler or yapping.\n"
                         "- Use explicit multiplication (*) and exponents (^)."
