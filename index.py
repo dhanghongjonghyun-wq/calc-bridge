@@ -11,11 +11,32 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 latest_chat_history = "Ready. Send an image to Telegram!"
 
+# Persistent session for faster API requests
+session = requests.Session()
+
+# Updated to use gemini-3.1-pro-preview as requested
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key={GEMINI_API_KEY}"
+TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+
+ENGINEERING_PROMPT_TEMPLATE = (
+    "User Caption / Request: {caption}\n"
+    "CRITICAL ENGINEERING SOLVER & MULTI-PROBLEM INSTRUCTIONS:\n"
+    "1. NO SKIPPING: If the worksheet contains multiple problems (e.g., Problem 1 AND Problem 2), you MUST solve ALL visible problems completely. Do NOT skip any problem.\n"
+    "2. SEPARATION: Use clear headers for each (e.g., 'PROBLEM 1' and 'PROBLEM 2').\n"
+    "3. RIGOROUS STATICS RULES:\n"
+    "   - Read node dimensions, loads, and angles carefully from the image.\n"
+    "   - Enforce correct sign conventions for moments (ΣM = 0) and equilibrium (ΣFx = 0, ΣFy = 0).\n"
+    "4. OUTPUT FORMAT FOR EACH PROBLEM:\n"
+    "   - Support Reactions\n"
+    "   - Method of Joints (Step-by-step)\n"
+    "   - Summary Table of Member Forces (Member | Force | State)\n"
+    "- NO conversational filler or yapping."
+)
+
 def evaluate_math_expression(expr):
     """Safely evaluate standard math expressions in Python, supporting degrees for trig and ^ for exponents."""
     try:
-        cleaned = expr.strip()
-        cleaned = cleaned.replace('^', '**')
+        cleaned = expr.strip().replace('^', '**')
         
         safe_dict = {
             "sin": lambda x: math.sin(math.radians(x)),
@@ -38,10 +59,8 @@ def evaluate_math_expression(expr):
                 safe_dict[name] = getattr(math, name)
         
         result = eval(cleaned, {"__builtins__": {}}, safe_dict)
-        
         if isinstance(result, float) and result.is_integer():
             result = int(result)
-            
         return str(result)
     except Exception:
         return None
@@ -54,22 +73,17 @@ def clean_for_display(text):
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
     text = text.replace("$$", "").replace("$", "").replace("**", "")
-    
     text = text.replace(r"\boxed", "").replace("{", "").replace("}", "")
     text = text.replace("---", "").replace("###", "")
     text = re.sub(r'\\[a-zA-Z]+', '', text)
-    
     text = text.replace("•", "-").replace("—", "-").replace("–", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
-    
     text = re.sub(r'(\d+)\s+(\d+\.\d+)\s*=', r'\1 * \2 =', text)
     
     lines = text.split('\n')
     cleaned_lines = [re.sub(r'[^\x00-\x7F]+', ' ', line) for line in lines]
     cleaned_lines = [re.sub(r'[ \t]+', ' ', line).strip() for line in cleaned_lines]
-    cleaned_lines = [line for line in cleaned_lines if line]
-    
-    return "\n".join(cleaned_lines)
+    return "\n".join([line for line in cleaned_lines if line])
 
 # 1. Main ESP32 Endpoint (Handles direct text math expressions)
 @app.route("/", methods=["GET", "POST"])
@@ -82,7 +96,6 @@ def bridge_handler():
     if request.method == "POST":
         try:
             content_type = request.headers.get("Content-Type", "")
-            
             if "text/plain" in content_type:
                 user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
                 if not user_expression:
@@ -92,26 +105,19 @@ def bridge_handler():
                 if direct_result is not None:
                     solution_text = direct_result
                 else:
-                    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
-                    
                     prompt = (
                         f"Solve directly: {user_expression}. "
                         "STRICT FORMATTING INSTRUCTIONS:\n"
                         "- NO introductory or concluding sentences.\n"
                         "- Use structured steps, equations, and summary tables only.\n"
                         "- Plain text, no conversational filler or yapping.\n"
-                        "- Use explicit multiplication (*) and exponents (^).\n"
-                        "- For trig, treat inputs as degrees and include radians in parentheses: X deg (Y rad)."
+                        "- Use explicit multiplication (*) and exponents (^)."
                     )
-                    
                     payload = {
-                        "contents": [{
-                            "parts": [{"text": prompt}]
-                        }]
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {"temperature": 0.0}
                     }
-                    
-                    headers = {"Content-Type": "application/json"}
-                    response = requests.post(gemini_url, headers=headers, json=payload, timeout=15)
+                    response = session.post(GEMINI_API_URL, json=payload, timeout=15)
                     res_json = response.json()
                     
                     if "error" in res_json:
@@ -119,12 +125,8 @@ def bridge_handler():
 
                     candidates = res_json.get("candidates", [])
                     if candidates:
-                        parts = candidates[0].get("content", {}).get("parts", [])
-                        if parts:
-                            content = parts[0].get("text", "")
-                            solution_text = clean_for_display(content)
-                        else:
-                            solution_text = "Model Blank: No parts returned"
+                        content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        solution_text = clean_for_display(content)
                     else:
                         solution_text = "API Error: No candidates"
             else:
@@ -144,7 +146,7 @@ def poll_handler():
     global latest_chat_history
     return latest_chat_history, 200
 
-# 2. Telegram Webhook Endpoint (Receives photos OR uncompressed files/documents)
+# 2. Telegram Webhook Endpoint (Receives photos OR uncompressed files)
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
     global latest_chat_history
@@ -159,64 +161,43 @@ def telegram_webhook():
     try:
         file_id = None
         
-        # Check if sent as an uncompressed document/file
-        if "document" in message:
-            doc = message["document"]
-            mime_type = doc.get("mime_type", "")
-            if mime_type.startswith("image/"):
-                file_id = doc["file_id"]
-                
-        # Fallback to standard compressed photos if not sent as a document
+        if "document" in message and message["document"].get("mime_type", "").startswith("image/"):
+            file_id = message["document"]["file_id"]
         elif "photo" in message and len(message["photo"]) > 0:
-            photo = message["photo"][-1]
-            file_id = photo["file_id"]
+            file_id = message["photo"][-1]["file_id"]
 
         caption = message.get("caption", message.get("text", "Solve this problem."))
 
         if file_id:
-            file_info_res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}")
+            file_info_res = session.get(f"{TELEGRAM_API_BASE}/getFile?file_id={file_id}")
             file_info = file_info_res.json()
             
             if file_info.get("ok"):
                 file_path = file_info["result"]["file_path"]
                 image_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
                 
-                # Fetch raw uncompressed image data
-                img_res = requests.get(image_url)
+                img_res = session.get(image_url)
                 base64_image = base64.b64encode(img_res.content).decode('utf-8')
                 
-                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
-                
-                prompt = (
-                    f"User Caption / Request: {caption}\n"
-                    "CRITICAL ENGINEERING SOLVER & MULTI-PROBLEM INSTRUCTIONS:\n"
-                    "1. NO SKIPPING: If the worksheet contains multiple problems (e.g., Problem 1 AND Problem 2), you MUST solve ALL visible problems completely. Do NOT skip any problem unless explicitly told to in the caption.\n"
-                    "2. SEPARATION: Use clear headers for each (e.g., 'PROBLEM 1' and 'PROBLEM 2').\n"
-                    "3. RIGOROUS STATICS RULES:\n"
-                    "   - Read node dimensions, loads, and angles carefully from the image.\n"
-                    "   - Enforce correct sign conventions for moments (ΣM = 0) and equilibrium (ΣFx = 0, ΣFy = 0).\n"
-                    "4. OUTPUT FORMAT FOR EACH PROBLEM:\n"
-                    "   - Support Reactions\n"
-                    "   - Method of Joints (Step-by-step)\n"
-                    "   - Summary Table of Member Forces (Member | Force | State)\n"
-                    "- NO conversational filler or yapping."
-                )
-
+                prompt = ENGINEERING_PROMPT_TEMPLATE.format(caption=caption)
                 payload = {
                     "contents": [{
                         "parts": [
                             {"text": prompt},
                             {"inline_data": {"mime_type": "image/jpeg", "data": base64_image}}
                         ]
-                    }]
+                    }],
+                    "generationConfig": {
+                        "temperature": 0.0  # Zero creativity to prevent number hallucination
+                    }
                 }
                 
-                response = requests.post(gemini_url, json=payload, timeout=30)
+                response = session.post(GEMINI_API_URL, json=payload, timeout=30)
                 gemini_res = response.json()
                 
                 if "error" in gemini_res:
-                    error_msg = gemini_res['error'].get('message', 'Unknown API Error')
-                    answer = f"API Error: {error_msg}"
+                    answer = f"API Error: {gemini_res['error'].get('message', 'Unknown API Error')}"
+                    print(f"Gemini Error Log: {answer}")
                 else:
                     candidates = gemini_res.get("candidates", [])
                     if candidates:
@@ -227,14 +208,13 @@ def telegram_webhook():
                     
                 latest_chat_history = answer
                 
-                # Send structured answer back to Telegram
-                requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json={
+                session.post(f"{TELEGRAM_API_BASE}/sendMessage", json={
                     "chat_id": chat_id,
                     "text": answer
                 })
 
     except Exception as e:
-        print("Webhook Exception Error:", str(e))
+        print(f"Webhook Exception Error: {str(e)}")
 
     return "OK", 200
 
