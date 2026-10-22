@@ -14,19 +14,20 @@ latest_chat_history = "Ready. Send an image to Telegram!"
 # Persistent session for faster API requests
 session = requests.Session()
 
-# Model Endpoint switched to gemini-flash-latest for high availability
+# Model Endpoint
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
 TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
+# Note: Curly braces are doubled {{ }} so Python's .format() doesn't crash on them
 ENGINEERING_PROMPT_TEMPLATE = (
-    "User Caption / Request: {caption}\n"
+    "User Caption / Request: {{caption}}\n"
     "CIRCUIT SOLVER INSTRUCTIONS:\n"
     "1. ACCURATE POLARITIES & KVL TRACE:\n"
     "   - Long line = Positive (+), Short line = Negative (-).\n"
     "   - When tracing clockwise, entering a negative terminal is -V; entering a positive terminal is +V.\n"
     "   - Note: Entering the negative terminal of the 36V source on top going clockwise is a potential rise (+36V).\n"
     "2. FORMATTING RULES (STRICT PLAIN TEXT):\n"
-    "   - DO NOT use LaTeX formatting like \\cdot, \\text{}, \\Omega, or backslashes. Write multiplication explicitly with '*' or spaces, and units plainly (e.g., 20.00 V, 8.00 ohms, A).\n"
+    "   - DO NOT use LaTeX formatting like \\cdot, \\text{{}}, \\Omega, or backslashes. Write multiplication explicitly with '*' or spaces, and units plainly (e.g., 20.00 V, 8.00 ohms, A).\n"
     "   - NO conversational filler, no introductory/concluding remarks, and no yapping.\n"
     "   - List givens compactly.\n"
     "   - NO fractions allowed (e.g. no '-100/22').\n"
