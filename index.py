@@ -24,11 +24,12 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "1. ACCURATE POLARITIES & KVL TRACE:\n"
     "   - Long line = Positive (+), Short line = Negative (-).\n"
     "   - When tracing clockwise, entering a negative terminal is -V; entering a positive terminal is +V.\n"
-    "2. FORMATTING RULES:\n"
-    "   - Do not use raw LaTeX backslashes for units. Write resistance units as ohms (e.g., 8.00 ohms).\n"
+    "   - Note: Entering the negative terminal of the 36V source on top going clockwise is a potential rise (+36V).\n"
+    "2. FORMATTING RULES (STRICT PLAIN TEXT):\n"
+    "   - DO NOT use LaTeX formatting like \\cdot, \\text{}, \\Omega, or backslashes. Write multiplication explicitly with '*' or spaces, and units plainly (e.g., 20.00 V, 8.00 ohms, A).\n"
     "   - NO conversational filler, no introductory/concluding remarks, and no yapping.\n"
     "   - List givens compactly.\n"
-    "   - NO fractions allowed (e.g. no '-50/11').\n"
+    "   - NO fractions allowed (e.g. no '-100/22').\n"
     "   - ALL numerical values and final answers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
     "3. OUTPUT STRUCTURE:\n"
     "   - Givens list\n"
@@ -87,7 +88,9 @@ def clean_for_display(text):
     if not text:
         return "No text returned"
     
-    # Automatically convert LaTeX ohm commands or lingering backslashes into 'ohms'
+    # Aggressively strip out LaTeX artifact wrappers (\cdot, \text{}, \Omega, etc.)
+    text = text.replace(r"\cdot", "*")
+    text = re.sub(r'\\text\{([^}]+)\}', r'\1', text)
     text = re.sub(r'\\Omega\b', 'ohms', text, flags=re.IGNORECASE)
     text = re.sub(r'\\omega\b', 'ohms', text, flags=re.IGNORECASE)
     text = re.sub(r'\\([a-zA-Z]+)', r'\1', text)
@@ -134,7 +137,7 @@ def bridge_handler():
                     prompt = (
                         f"Solve directly: {user_expression}. "
                         "STRICT FORMATTING:\n"
-                        "- No backslashes or LaTeX symbols.\n"
+                        "- No backslashes, \cdot, or LaTeX text blocks.\n"
                         "- No intro/outro sentences or yapping.\n"
                         "- Round all numbers to exactly two decimal places. No fractions."
                     )
