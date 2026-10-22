@@ -15,8 +15,8 @@ latest_chat_history = "Ready. Send an image to Telegram!"
 # Persistent session for faster API requests
 session = requests.Session()
 
-# Model Endpoint
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
+# Model Endpoint switched to gemini-flash-lite-latest
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={GEMINI_API_KEY}"
 TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 ENGINEERING_PROMPT_TEMPLATE = (
@@ -46,13 +46,12 @@ def post_with_retry(url, json_payload, retries=3, backoff=2):
             response = session.post(url, json=json_payload, timeout=25)
             res_json = response.json()
             
-            # Check if API returned an error (like high demand overload)
             if "error" in res_json:
                 err_msg = res_json['error'].get('message', '')
                 if "high demand" in err_msg.lower() or "overloaded" in err_msg.lower():
                     if attempt < retries - 1:
                         time.sleep(backoff)
-                        backoff *= 2  # Exponential backoff
+                        backoff *= 2
                         continue
             return res_json
         except requests.exceptions.Timeout:
