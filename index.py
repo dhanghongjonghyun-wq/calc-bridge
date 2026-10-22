@@ -111,12 +111,18 @@ def clean_for_display(text):
     if not text:
         return "No text returned"
     
+    # Automatically catch and fix malformed multi-dot decimal glitches
+    text = re.sub(r'-100\.0(?:\.\d+)+', '-100.00', text)
+    text = re.sub(r'(-?\d+)\.(\d+)\.(\d+)', r'\1.\2', text)
+    
+    # Aggressively strip out LaTeX artifact wrappers (\cdot, \text{}, \Omega, etc.)
     text = text.replace(r"\cdot", "*")
     text = re.sub(r'\\text\{([^}]+)\}', r'\1', text)
     text = re.sub(r'\\Omega\b', 'ohms', text, flags=re.IGNORECASE)
     text = re.sub(r'\\omega\b', 'ohms', text, flags=re.IGNORECASE)
     text = re.sub(r'\\([a-zA-Z]+)', r'\1', text)
     
+    # Clean standard LaTeX math formatting
     text = text.replace(r"\times", "*").replace(r"\div", "/")
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
@@ -272,4 +278,4 @@ def telegram_webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-                    
+    
