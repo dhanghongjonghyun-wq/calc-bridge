@@ -3,6 +3,7 @@ import base64
 import requests
 import re
 import math
+import time
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -18,7 +19,6 @@ session = requests.Session()
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
 TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
-# Note: Curly braces are doubled {{ }} so Python's .format() doesn't crash on them
 ENGINEERING_PROMPT_TEMPLATE = (
     "User Caption / Request: {{caption}}\n"
     "CIRCUIT SOLVER INSTRUCTIONS:\n"
@@ -38,6 +38,31 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "   - Supermesh KVL Equation & Step-by-Step Solution\n"
     "   - Final Summary Table (Parameter | Value | Unit)"
 )
+
+def post_with_retry(url, json_payload, retries=3, backoff=2):
+    """Sends a POST request to Gemini with automatic retries if high demand or temporary errors occur."""
+    for attempt in range(retries):
+        try:
+            response = session.post(url, json=json_payload, timeout=25)
+            res_json = response.json()
+            
+            # Check if API returned an error (like high demand overload)
+            if "error" in res_json:
+                err_msg = res_json['error'].get('message', '')
+                if "high demand" in err_msg.lower() or "overloaded" in err_msg.lower():
+                    if attempt < retries - 1:
+                        time.sleep(backoff)
+                        backoff *= 2  # Exponential backoff
+                        continue
+            return res_json
+        except requests.exceptions.Timeout:
+            if attempt < retries - 1:
+                time.sleep(backoff)
+                continue
+            raise
+        except Exception:
+            raise
+    return {"error": {"message": "API is busy after multiple retries."}}
 
 def evaluate_math_expression(expr):
     """Safely evaluate standard math expressions in Python, supporting degrees for trig and ^ for exponents."""
@@ -89,21 +114,19 @@ def clean_for_display(text):
     if not text:
         return "No text returned"
     
-    # Aggressively strip out LaTeX artifact wrappers (\cdot, \text{}, \Omega, etc.)
     text = text.replace(r"\cdot", "*")
     text = re.sub(r'\\text\{([^}]+)\}', r'\1', text)
     text = re.sub(r'\\Omega\b', 'ohms', text, flags=re.IGNORECASE)
     text = re.sub(r'\\omega\b', 'ohms', text, flags=re.IGNORECASE)
     text = re.sub(r'\\([a-zA-Z]+)', r'\1', text)
     
-    # Clean standard LaTeX math formatting
     text = text.replace(r"\times", "*").replace(r"\div", "/")
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
     text = text.replace("$$", "").replace("$", "").replace("**", "")
     text = text.replace(r"\boxed", "").replace("{", "").replace("}", "")
     text = text.replace("---", "").replace("###", "")
-    text = text.replace("\\", "")  # Strip any remaining stray backslashes
+    text = text.replace("\\", "")
     
     text = text.replace("•", "-")
     text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
@@ -149,8 +172,7 @@ def bridge_handler():
                             "topP": 0.1
                         }
                     }
-                    response = session.post(GEMINI_API_URL, json=payload, timeout=15)
-                    res_json = response.json()
+                    res_json = post_with_retry(GEMINI_API_URL, payload)
                     
                     if "error" in res_json:
                         return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
@@ -226,8 +248,7 @@ def telegram_webhook():
                     }
                 }
                 
-                response = session.post(GEMINI_API_URL, json=payload, timeout=30)
-                gemini_res = response.json()
+                gemini_res = post_with_retry(GEMINI_API_URL, payload)
                 
                 if "error" in gemini_res:
                     answer = f"API Error: {gemini_res['error'].get('message', 'Unknown API Error')}"
