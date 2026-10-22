@@ -144,7 +144,7 @@ def poll_handler():
     global latest_chat_history
     return latest_chat_history, 200
 
-# 2. Telegram Webhook Endpoint (Receives photos from your phone)
+# 2. Telegram Webhook Endpoint (Receives photos OR uncompressed files/documents)
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
     global latest_chat_history
@@ -157,74 +157,82 @@ def telegram_webhook():
     chat_id = message["chat"]["id"]
     
     try:
-        image_url = None
-        if "photo" in message and len(message["photo"]) > 0:
+        file_id = None
+        
+        # Check if sent as an uncompressed document/file
+        if "document" in message:
+            doc = message["document"]
+            mime_type = doc.get("mime_type", "")
+            if mime_type.startswith("image/"):
+                file_id = doc["file_id"]
+                
+        # Fallback to standard compressed photos if not sent as a document
+        elif "photo" in message and len(message["photo"]) > 0:
             photo = message["photo"][-1]
             file_id = photo["file_id"]
-            
+
+        caption = message.get("caption", message.get("text", "Solve this problem."))
+
+        if file_id:
             file_info_res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}")
             file_info = file_info_res.json()
             
             if file_info.get("ok"):
                 file_path = file_info["result"]["file_path"]
                 image_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
-
-        caption = message.get("caption", message.get("text", "Solve this problem."))
-
-        if image_url:
-            img_res = requests.get(image_url)
-            base64_image = base64.b64encode(img_res.content).decode('utf-8')
-            
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
-            
-            prompt = (
-                f"{caption}\n"
-                "CRITICAL INSTRUCTIONS FOR MULTI-PROBLEM WORKSHEETS:\n"
-                "1. IDENTIFY THE PROBLEM: Explicitly state 'PROBLEM 1' or 'PROBLEM 2' at the very top of your output based on what is shown/requested.\n"
-                "2. NO MIXING: Solve ONLY the single requested problem. If both are present without a specific request, state 'PROBLEM 1' and solve it, then state 'PROBLEM 2' and solve it separately.\n"
-                "3. RIGOROUS STATICS RULES:\n"
-                "   - Verify line connections carefully before setting up equations.\n"
-                "   - Check sign conventions: Downward forces ALWAYS produce consistent directional signs in moment calculations relative to positive rotations.\n"
-                "   - Explicitly write out member angles, sin/cos components, and coordinate steps.\n"
-                "4. OUTPUT FORMAT:\n"
-                "   - Clear Problem Title\n"
-                "   - 1. Support Reactions (ΣFx, ΣFy, ΣM)\n"
-                "   - 2. Method of Joints (Node by Node)\n"
-                "   - Summary Table of Member Forces (Member | Force | State)\n"
-                "- NO conversational filler or yapping."
-            )
-
-            payload = {
-                "contents": [{
-                    "parts": [
-                        {"text": prompt},
-                        {"inline_data": {"mime_type": "image/jpeg", "data": base64_image}}
-                    ]
-                }]
-            }
-            
-            response = requests.post(gemini_url, json=payload, timeout=20)
-            gemini_res = response.json()
-            
-            if "error" in gemini_res:
-                error_msg = gemini_res['error'].get('message', 'Unknown API Error')
-                print(f"Gemini API Error: {error_msg}")
-                answer = f"API Error: {error_msg}"
-            else:
-                candidates = gemini_res.get("candidates", [])
-                if candidates:
-                    content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "No response")
-                    answer = clean_for_display(content)
-                else:
-                    answer = "Vision processing failed: No candidates returned."
                 
-            latest_chat_history = answer
-            
-            # Send structured answer back to your Telegram chat app on your phone
-            requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json={
-                "chat_id": chat_id,
-                "text": answer
-            })
+                # Fetch raw uncompressed image data
+                img_res = requests.get(image_url)
+                base64_image = base64.b64encode(img_res.content).decode('utf-8')
+                
+                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+                
+                prompt = (
+                    f"{caption}\n"
+                    "CRITICAL ENGINEERING SOLVER INSTRUCTIONS:\n"
+                    "1. IDENTIFY THE PROBLEM: Explicitly state 'PROBLEM 1' or 'PROBLEM 2' at the top.\n"
+                    "2. RIGOROUS STATICS RULES:\n"
+                    "   - Verify line connections carefully before setting up equations.\n"
+                    "   - Check sign conventions: Downward forces ALWAYS produce consistent directional signs in moment calculations.\n"
+                    "   - Explicitly write out member angles, sin/cos components, and coordinate steps.\n"
+                    "3. OUTPUT FORMAT:\n"
+                    "   - Clear Problem Title\n"
+                    "   - 1. Support Reactions (ΣFx, ΣFy, ΣM)\n"
+                    "   - 2. Method of Joints (Node by Node)\n"
+                    "   - Summary Table of Member Forces (Member | Force | State)\n"
+                    "- NO conversational filler or yapping."
+                )
+
+                payload = {
+                    "contents": [{
+                        "parts": [
+                            {"text": prompt},
+                            {"inline_data": {"mime_type": "image/jpeg", "data": base64_image}}
+                        ]
+                    }]
+                }
+                
+                response = requests.post(gemini_url, json=payload, timeout=25)
+                gemini_res = response.json()
+                
+                if "error" in gemini_res:
+                    error_msg = gemini_res['error'].get('message', 'Unknown API Error')
+                    answer = f"API Error: {error_msg}"
+                else:
+                    candidates = gemini_res.get("candidates", [])
+                    if candidates:
+                        content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "No response")
+                        answer = clean_for_display(content)
+                    else:
+                        answer = "Vision processing failed: No candidates returned."
+                    
+                latest_chat_history = answer
+                
+                # Send structured answer back to Telegram
+                requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json={
+                    "chat_id": chat_id,
+                    "text": answer
+                })
 
     except Exception as e:
         print("Webhook Exception Error:", str(e))
