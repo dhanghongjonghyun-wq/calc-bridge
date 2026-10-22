@@ -14,8 +14,8 @@ latest_chat_history = "Ready. Send an image to Telegram!"
 # Persistent session for faster API requests
 session = requests.Session()
 
-# Model Endpoint
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
+# Model Endpoint switched to gemini-flash-latest for high availability
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
 TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 ENGINEERING_PROMPT_TEMPLATE = (
