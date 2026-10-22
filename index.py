@@ -96,9 +96,9 @@ def bridge_handler():
                     
                     prompt = (
                         f"Solve directly: {user_expression}. "
-                        "FORMAT RULES:\n"
+                        "STRICT FORMATTING INSTRUCTIONS:\n"
                         "- NO introductory or concluding sentences.\n"
-                        "- Use bullet points or numbered steps only.\n"
+                        "- Use structured steps, equations, and summary tables only.\n"
                         "- Plain text, no conversational filler or yapping.\n"
                         "- Use explicit multiplication (*) and exponents (^).\n"
                         "- For trig, treat inputs as degrees and include radians in parentheses: X deg (Y rad)."
@@ -179,11 +179,27 @@ def telegram_webhook():
             
             prompt = (
                 f"{caption}\n"
-                "FORMAT RULES:\n"
-                "- NO introductory or concluding sentences.\n"
-                "- Use bullet points or numbered steps only.\n"
-                "- Plain text, no conversational filler or yapping.\n"
-                "- Give straight-to-the-point solutions easy to copy to notes."
+                "STRICT FORMATTING INSTRUCTIONS:\n"
+                "Follow this exact clean structure without any conversational text or introduction:\n\n"
+                "1. Support Reactions\n"
+                "- Support A: [Type and reaction variables]\n"
+                "- Support E: [Type and reaction variables]\n"
+                "Sum of Horizontal Forces (Sigma F_x = 0):\n"
+                "Sigma F_x = 0 ===> [Equation] ===> E_x = [Value]\n\n"
+                "Sum of Moments about A (Sigma M_A = 0):\n"
+                "[Moment equation / steps]\n"
+                "E_y = [Value]\n\n"
+                "Sum of Vertical Forces (Sigma F_y = 0):\n"
+                "[Equation]\n"
+                "A_y = [Value]\n\n"
+                "2. Member Forces (Method of Joints)\n"
+                "Joint A:\n"
+                "- Sigma F_y = 0 ===> [Equation] ===> F_AB = [Value] (Compression/Tension)\n"
+                "- Sigma F_x = 0 ===> [Equation] ===> F_AC = [Value] (Compression/Tension)\n"
+                "(Continue similarly for subsequent joints sequentially: E, B, D, etc.)\n\n"
+                "Summary Table of Member Forces:\n"
+                "Member | Force (lb) | State\n"
+                "[List members, values, and C/T states clearly]"
             )
 
             payload = {
@@ -212,7 +228,7 @@ def telegram_webhook():
                 
             latest_chat_history = answer
             
-            # Send answer back to your Telegram chat app on your phone
+            # Send structured answer back to your Telegram chat app on your phone
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json={
                 "chat_id": chat_id,
                 "text": answer
