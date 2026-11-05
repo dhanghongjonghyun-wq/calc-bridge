@@ -21,16 +21,20 @@ TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 ENGINEERING_PROMPT_TEMPLATE = (
     "User Caption / Request: {{caption}}\n"
-    "SOLVER INSTRUCTIONS:\n"
-    "1. Follow this exact 3-section structure with NO conversational filler or intro/outro remarks:\n"
-    "   1st Givens\n"
-    "   2nd Step-by-Step Formula Solution (Provide direct, concise mathematical lines).\n"
-    "   3rd Final Answers\n"
-    "2. FORMATTING RULES:\n"
-    "   - NO LaTeX, backslashes, fractions, or \\cdot. Use '*' for multiplication and plain units (e.g., lb, ft).\n"
-    "   - All numbers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
-    "   - CRITICAL: Never stutter or duplicate decimal points (e.g., write '70000.00', NEVER '70000.0.00.00').\n"
-    "   - FOR TRUSS PROBLEMS: Solve all joints completely and state **Tension** or **Compression** for every member.\n"
+    "CIRCUIT & TRUSS SOLVER INSTRUCTIONS:\n"
+    "1. ACCURATE POLARITIES, KVL, KCL, & TRUSS MECHANICS:\n"
+    "   - Long line = Positive (+), Short line = Negative (-).\n"
+    "   - When tracing clockwise, entering a negative terminal is -V; entering a positive terminal is +V.\n"
+    "2. STRICT FORMATTING & STRUCTURE:\n"
+    "   - Follow this exact 3-section structure with NO conversational filler, intro/outro remarks, or yapping:\n"
+    "     1st Givens\n"
+    "     2nd Step-by-Step Formula Solution (Write out full, expanded steps: KVL / KCL / moment equations, substitution, distribution, combining terms, solving for variables explicitly).\n"
+    "     3rd Final Answers\n"
+    "   - DO NOT use LaTeX formatting like \\cdot, \\text{{}}, \\Omega, or backslashes. Write multiplication explicitly with '*' or spaces, and units plainly (e.g., 20.00 V, 8.00 ohms, kN, A, W).\n"
+    "   - NO fractions allowed.\n"
+    "   - ALL numerical values and final answers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
+    "   - CRITICAL: Never stutter, duplicate decimal points, or output malformed numbers (e.g., NEVER write '70000.0.00.00' or '-100.0.00.00'). Always write clean single-decimal numbers like '70000.00'.\n"
+    "   - FOR TRUSS PROBLEMS: Every final member force answer MUST explicitly state whether it is in **Tension** or **Compression** (e.g., Fab = -9.44 kN (Compression)).\n"
 )
 
 def post_with_retry(url, json_payload, retries=3, backoff=2):
@@ -180,7 +184,7 @@ def bridge_handler():
                         "generationConfig": {
                             "temperature": 0.0,
                             "topP": 0.1,
-                            "maxOutputTokens": 32768
+                            "maxOutputTokens": 65536
                         }
                     }
                     res_json = post_with_retry(GEMINI_API_URL, payload)
@@ -256,7 +260,7 @@ def telegram_webhook():
                         "temperature": 0.0,
                         "topP": 0.1,
                         "topK": 1,
-                        "maxOutputTokens": 32768
+                        "maxOutputTokens": 65536
                     }
                 }
                 
