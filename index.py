@@ -27,14 +27,14 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "   - When tracing clockwise, entering a negative terminal is -V; entering a positive terminal is +V.\n"
     "2. STRICT FORMATTING & STRUCTURE:\n"
     "   - Follow this exact 3-section structure with NO conversational filler, intro/outro remarks, or yapping:\n"
-    "     1st Givens (Format using clean variable-assignment lines only, e.g., Pin = A, Roller = E, B = 1000.00 lb, AC = 10.00 ft, Theta = 60.00 deg)\n"
-    "     2nd Step-by-Step Formula Solution (Write out full, expanded steps: KVL / KCL / moment equations, substitution, distribution, combining terms, solving for variables explicitly).\n"
+    "     1st Givens (List all supports, loads, dimensions, and angles cleanly using variable assignments like A = Pin, E = Roller, B = 1000.00 lb, AC = 10.00 ft, Theta = 60.00 deg)\n"
+    "     2nd Step-by-Step Formula Solution (Write out full, expanded steps: moment equations, substitution, distribution, combining terms, solving for variables explicitly through all joints).\n"
     "     3rd Final Answers\n"
     "   - DO NOT use LaTeX formatting like \\cdot, \\text{{}}, \\Omega, or backslashes. Write multiplication explicitly with '*' or spaces, and units plainly (e.g., 20.00 V, 8.00 ohms, kN, A, W).\n"
     "   - NO fractions allowed.\n"
     "   - ALL numerical values and final answers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
     "   - CRITICAL: Never stutter, duplicate decimal points, or output malformed numbers (e.g., NEVER write '70000.0.00.00' or '-100.0.00.00'). Always write clean single-decimal numbers like '70000.00'.\n"
-    "   - FOR TRUSS PROBLEMS: Every final member force answer MUST explicitly state whether it is in **Tension** or **Compression** (e.g., Fab = -4041.45 lb (Compression)).\n"
+    "   - FOR TRUSS PROBLEMS: Solve all joints completely and state whether every final member force is in **Tension** or **Compression** (e.g., Fab = -4041.45 lb (Compression)).\n"
 )
 
 def post_with_retry(url, json_payload, retries=3, backoff=2):
