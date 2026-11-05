@@ -15,8 +15,8 @@ latest_chat_history = "Ready. Send an image to Telegram!"
 # Persistent session for faster API requests
 session = requests.Session()
 
-# Model Endpoint
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={GEMINI_API_KEY}"
+# Model Endpoint updated to gemini-3.8-flash
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={GEMINI_API_KEY}"
 TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 ENGINEERING_PROMPT_TEMPLATE = (
@@ -250,7 +250,7 @@ def telegram_webhook():
                         "temperature": 0.0,
                         "topP": 0.1,
                         "topK": 1,
-                        "maxOutputTokens": 65536  # Set to maximum allowed token limit to completely eliminate cut-offs
+                        "maxOutputTokens": 65536
                     }
                 }
                 
