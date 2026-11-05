@@ -35,7 +35,7 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "   - ALL numerical values and final answers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
     "   - CRITICAL: Never stutter, duplicate decimal points, or output malformed numbers (e.g., NEVER write '70000.0.00.00' or '-100.0.00.00'). Always write clean single-decimal numbers like '70000.00'.\n"
     "   - FOR TRUSS PROBLEMS (METHOD OF JOINTS): \n"
-    "     * You MUST systematically move joint by joint (A -> B -> C -> D -> E) and double-check vector signs ($+\\cos\\theta, -\\sin\\theta$). \n"
+    "     * You MUST systematically move joint by joint (A -> B -> C -> D -> E) and double-check vector signs (+\\cos\\theta, -\\sin\\theta). \n"
     "     * Exploit symmetry where applicable (e.g., mirror joints like B and D must match magnitudes). \n"
     "     * Every final member force answer MUST explicitly state whether it is in **Tension** or **Compression** (e.g., Fab = -4041.45 lb (Compression)).\n"
 )
@@ -129,5 +129,168 @@ def clean_for_display(text):
     
     text = fix_malformed_numbers(text)
     text = re.sub(r'-100\.0(?:\.\d+)+', '-100.00', text)
-    text = re.sub(r'(-?\d+)\.(\d+)\.(\
+    text = re.sub(r'(-?\d+)\.(\d+)\.(\d+)', r'\1.\2', text)
     
+    text = text.replace(r"\cdot", "*")
+    text = re.sub(r'\\text\{([^}]+)\}', r'\1', text)
+    text = re.sub(r'\\Omega\b', 'ohms', text, flags=re.IGNORECASE)
+    text = re.sub(r'\\omega\b', 'ohms', text, flags=re.IGNORECASE)
+    text = re.sub(r'\\([a-zA-Z]+)', r'\1', text)
+    
+    text = text.replace(r"\times", "*").replace(r"\div", "/")
+    text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
+    text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
+    text = text.replace("$$", "").replace("$", "").replace("**", "")
+    text = text.replace(r"\boxed", "").replace("{", "").replace("}", "")
+    text = text.replace("---", "").replace("###", "")
+    text = text.replace("\\", "")
+    
+    text = text.replace("•", "-")
+    text = text.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
+    
+    text = convert_fractions_to_decimals(text)
+    
+    lines = text.split('\n')
+    cleaned_lines = [re.sub(r'[^\x00-\x7F]+', ' ', line) for line in lines]
+    cleaned_lines = [re.sub(r'[ \t]+', ' ', line).strip() for line in cleaned_lines]
+    return "\n".join([line for line in cleaned_lines if line])
+
+# 1. Main ESP32 Endpoint (Handles direct text math expressions, GET, POST, and HEAD health checks)
+@app.route("/", methods=["GET", "POST", "HEAD"])
+def bridge_handler():
+    global latest_chat_history
+    
+    if request.method in ["GET", "HEAD"]:
+        return latest_chat_history, 200
+
+    if request.method == "POST":
+        try:
+            content_type = request.headers.get("Content-Type", "")
+            if "text/plain" in content_type:
+                user_expression = request.data.decode("utf-8", errors="ignore") if request.data else ""
+                if not user_expression:
+                    return "No expression", 200
+                
+                direct_result = evaluate_math_expression(user_expression)
+                if direct_result is not None:
+                    solution_text = direct_result
+                else:
+                    prompt = (
+                        f"Solve directly: {user_expression}. "
+                        "STRICT FORMATTING:\n"
+                        "- No backslashes, \cdot, or LaTeX text blocks.\n"
+                        "- No intro/outro sentences or yapping.\n"
+                        "- Round all numbers to exactly two decimal places. No fractions."
+                    )
+                    payload = {
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {
+                            "temperature": 0.0,
+                            "topP": 0.1,
+                            "maxOutputTokens": 65536
+                        }
+                    }
+                    res_json = post_with_retry(GEMINI_API_URL, payload)
+                    
+                    if "error" in res_json:
+                        return f"API Error: {res_json['error'].get('message', 'Unknown')}", 200
+
+                    candidates = res_json.get("candidates", [])
+                    if candidates:
+                        content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        solution_text = clean_for_display(content)
+                    else:
+                        solution_text = "API Error: No candidates"
+            else:
+                solution_text = "Invalid Request Format"
+                
+        except requests.exceptions.Timeout:
+            solution_text = "Error: AI response timeout"
+        except Exception as e:
+            solution_text = f"Error: {str(e)}"
+        
+        latest_chat_history = solution_text
+        return solution_text, 200
+
+# Explicit Poll Route for ESP32 Telegram Viewer sync
+@app.route("/poll", methods=["GET"])
+def poll_handler():
+    global latest_chat_history
+    return latest_chat_history, 200
+
+# 2. Telegram Webhook Endpoint
+@app.route("/webhook", methods=["POST"])
+def telegram_webhook():
+    global latest_chat_history
+    data = request.get_json()
+    
+    if not data or "message" not in data:
+        return "OK", 200
+
+    message = data["message"]
+    chat_id = message["chat"]["id"]
+    
+    try:
+        file_id = None
+        
+        if "document" in message and message["document"].get("mime_type", "").startswith("image/"):
+            file_id = message["document"]["file_id"]
+        elif "photo" in message and len(message["photo"]) > 0:
+            file_id = message["photo"][-1]["file_id"]
+
+        caption = message.get("caption", message.get("text", "Solve this problem."))
+
+        if file_id:
+            file_info_res = session.get(f"{TELEGRAM_API_BASE}/getFile?file_id={file_id}")
+            file_info = file_info_res.json()
+            
+            if file_info.get("ok"):
+                file_path = file_info["result"]["file_path"]
+                image_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+                
+                img_res = session.get(image_url)
+                base64_image = base64.b64encode(img_res.content).decode('utf-8')
+                
+                prompt = ENGINEERING_PROMPT_TEMPLATE.format(caption=caption)
+                payload = {
+                    "contents": [{
+                        "parts": [
+                            {"text": prompt},
+                            {"inline_data": {"mime_type": "image/jpeg", "data": base64_image}}
+                        ]
+                    }],
+                    "generationConfig": {
+                        "temperature": 0.0,
+                        "topP": 0.1,
+                        "topK": 1,
+                        "maxOutputTokens": 65536
+                    }
+                }
+                
+                gemini_res = post_with_retry(GEMINI_API_URL, payload)
+                
+                if "error" in gemini_res:
+                    answer = f"API Error: {gemini_res['error'].get('message', 'Unknown API Error')}"
+                    print(f"Gemini Error Log: {answer}")
+                else:
+                    candidates = gemini_res.get("candidates", [])
+                    if candidates:
+                        content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "No response")
+                        answer = clean_for_display(content)
+                    else:
+                        answer = "Vision processing failed: No candidates returned."
+                    
+                latest_chat_history = answer
+                
+                session.post(f"{TELEGRAM_API_BASE}/sendMessage", json={
+                    "chat_id": chat_id,
+                    "text": answer
+                })
+
+    except Exception as e:
+        print(f"Webhook Exception Error: {str(e)}")
+
+    return "OK", 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
