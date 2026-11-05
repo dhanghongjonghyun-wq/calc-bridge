@@ -25,14 +25,14 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "1. Follow this exact 3-section structure without conversational filler:\n"
     "   1st Givens (List ONLY raw visual data using compact names, e.g., Roller = A, Pin = E, B = 1000.00 lb, C = 4000.00 lb, D = 3000.00 lb, AC = 10.00 ft, CE = 10.00 ft, Theta = 60.00 deg).\n"
     "   2nd Step-by-Step Formula Solution:\n"
-    "      - Step 1: Global Equilibrium. Explicitly state the distance of each load from the reference support, calculate support reactions precisely via sum of moments, and cross-check with sum of vertical forces before proceeding.\n"
-    "      - Step 2: Method of Joints. Solve systematically joint by joint using compact member names (Fab, Fac, Fbc, Fbd, etc.) with clear equilibrium lines.\n"
+    "      - Step 1: Global Equilibrium. Explicitly state load distances from reference support, calculate reactions via sum of moments, and cross-check via sum of vertical forces.\n"
+    "      - Step 2: Method of Joints. Solve systematically joint by joint using compact member names (Fab, Fac, Fbc, Fbd, etc.). Assume all unknown members pull away from the joint (Tension = positive). Positive result = Tension, Negative result = Compression.\n"
     "   3rd Final Answers\n"
     "2. FORMATTING RULES:\n"
     "   - NO LaTeX, backslashes, fractions, or \\cdot. Use '*' for multiplication and plain units (e.g., lb, ft).\n"
     "   - All numerical values MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
     "   - Never stutter or duplicate decimal points (e.g., write '3500.00', never '3500.0.00.00').\n"
-    "   - State **Tension** or **Compression** for every final member force (e.g., Fab = -4041.45 lb (Compression)).\n"
+    "   - State **Tension** or **Compression** for every final member force (e.g., Fab = -4041.45 lb (Compression), Fbc = 2886.75 lb (Tension)).\n"
 )
 
 def post_with_retry(url, json_payload, retries=3, backoff=2):
