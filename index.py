@@ -15,8 +15,8 @@ latest_chat_history = "Ready. Send an image to Telegram!"
 # Persistent session for faster API requests
 session = requests.Session()
 
-# Model Endpoint updated to gemini-flash-latest
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
+# Model Endpoint updated to gemini-flash-lite-latest
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={GEMINI_API_KEY}"
 TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 ENGINEERING_PROMPT_TEMPLATE = (
@@ -47,7 +47,7 @@ def post_with_retry(url, json_payload, retries=3, backoff=2):
             
             if "error" in res_json:
                 err_msg = res_json['error'].get('message', '')
-                if "high demand" in err_msg.lower() or "overloaded" in err_msg.lower():
+                if "high demand" in err_msg.lower() or "overloaded" in err_msg.lower() or "unavailable" in err_msg.lower():
                     if attempt < retries - 1:
                         time.sleep(backoff)
                         backoff *= 2
@@ -87,7 +87,7 @@ def evaluate_math_expression(expr):
             if not name.startswith('_'):
                 safe_dict[name] = getattr(math, name)
         
-        result = eval(cleaned, {"__builtins__" : {}}, safe_dict)
+        result = eval(cleaned, {"__builtins__": {}}, safe_dict)
         if isinstance(result, float):
             result = round(result, 2)
             if result.is_integer():
