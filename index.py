@@ -15,7 +15,7 @@ latest_chat_history = "Ready. Send an image to Telegram!"
 # Persistent session for faster API requests
 session = requests.Session()
 
-# Model Endpoint updated to gemini-flash-lite-latest
+# Model Endpoint
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={GEMINI_API_KEY}"
 TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
@@ -34,7 +34,7 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "   - DO NOT use LaTeX formatting like \\cdot, \\text{{}}, \\Omega, or backslashes. Write multiplication explicitly with '*' or spaces, and units plainly (e.g., 20.00 V, 8.00 ohms, kN, A, W).\n"
     "   - NO fractions allowed.\n"
     "   - ALL numerical values and final answers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
-    "   - NEVER write malformed numbers or duplicate decimal points (e.g., write '-100.00', never '-100.0.00.00').\n"
+    "   - CRITICAL: Never stutter, duplicate decimal points, or output malformed numbers (e.g., NEVER write '70000.0.00.00' or '-100.0.00.00'). Always write clean single-decimal numbers like '70000.00'.\n"
     "   - FOR TRUSS PROBLEMS: Every final member force answer MUST explicitly state whether it is in **Tension** or **Compression** (e.g., Fab = -9.44 kN (Compression)).\n"
 )
 
@@ -108,10 +108,29 @@ def convert_fractions_to_decimals(text):
     
     return re.sub(r'(-?\d+)\s*/\s*(\d+)', replacer, text)
 
+def fix_malformed_numbers(text):
+    """Aggressively catches and fixes any multi-dot decimal stutters (e.g., 70000.0.00.00 -> 70000.00)."""
+    def sanitize_match(m):
+        full_str = m.group(0)
+        parts = full_str.split('.')
+        if len(parts) > 2:
+            integer_part = parts[0]
+            decimal_part = parts[1] if len(parts[1]) > 0 else "00"
+            # Format cleanly to 2 decimal places
+            return f"{integer_part}.{decimal_part[:2].ljust(2, '0')}"
+        return full_str
+    
+    # Matches numbers containing 2 or more decimal points
+    return re.sub(r'-?\b\d+(?:\.\d+){2,}\b', sanitize_match, text)
+
 def clean_for_display(text):
     if not text:
         return "No text returned"
     
+    # Apply the aggressive multi-dot number fix first
+    text = fix_malformed_numbers(text)
+    
+    # Extra fallback patterns for legacy edge cases
     text = re.sub(r'-100\.0(?:\.\d+)+', '-100.00', text)
     text = re.sub(r'(-?\d+)\.(\d+)\.(\d+)', r'\1.\2', text)
     
