@@ -28,15 +28,14 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "2. STRICT FORMATTING & STRUCTURE:\n"
     "   - Follow this exact 3-section structure with NO conversational filler, intro/outro remarks, or yapping:\n"
     "     1st Givens\n"
-    "     2nd Step-by-Step Formula Solution (Write out full, expanded steps: KVL / KCL / moment equations, substitution, distribution, combining terms, solving for variables explicitly).\n"
+    "     2nd Step-by-Step Formula Solution (Write out concise, direct mathematical equation lines without conversational paragraphs or trailing text).\n"
     "     3rd Final Answers\n"
     "   - DO NOT use LaTeX formatting like \\cdot, \\text{{}}, \\Omega, or backslashes. Write multiplication explicitly with '*' or spaces, and units plainly (e.g., 20.00 V, 8.00 ohms, kN, A, W).\n"
     "   - NO fractions allowed.\n"
     "   - ALL numerical values and final answers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
     "   - CRITICAL: Never stutter, duplicate decimal points, or output malformed numbers (e.g., NEVER write '70000.0.00.00' or '-100.0.00.00'). Always write clean single-decimal numbers like '70000.00'.\n"
     "   - FOR TRUSS PROBLEMS (METHOD OF JOINTS): \n"
-    "     * You MUST systematically move joint by joint (A -> B -> C -> D -> E) and double-check vector signs (+\\cos\\theta, -\\sin\\theta). \n"
-    "     * Exploit symmetry where applicable (e.g., mirror joints like B and D must match magnitudes). \n"
+    "     * Move systematically joint by joint (A -> B -> C -> D -> E) using short, direct lines.\n"
     "     * Every final member force answer MUST explicitly state whether it is in **Tension** or **Compression** (e.g., Fab = -4041.45 lb (Compression)).\n"
 )
 
@@ -187,7 +186,7 @@ def bridge_handler():
                         "generationConfig": {
                             "temperature": 0.0,
                             "topP": 0.1,
-                            "maxOutputTokens": 65536
+                            "maxOutputTokens": 8192
                         }
                     }
                     res_json = post_with_retry(GEMINI_API_URL, payload)
@@ -263,7 +262,7 @@ def telegram_webhook():
                         "temperature": 0.0,
                         "topP": 0.1,
                         "topK": 1,
-                        "maxOutputTokens": 65536
+                        "maxOutputTokens": 8192
                     }
                 }
                 
