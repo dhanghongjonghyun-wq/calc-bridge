@@ -35,7 +35,7 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "   - NO fractions allowed.\n"
     "   - ALL numerical values and final answers MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
     "   - CRITICAL: Never stutter, duplicate decimal points, or output malformed numbers (e.g., NEVER write '70000.0.00.00' or '-100.0.00.00'). Always write clean single-decimal numbers like '70000.00'.\n"
-    "   - FOR TRUSS PROBLEMS: Every final member force answer MUST explicitly state whether it is in **Tension** or **Compression** (e.g., Fab = -9.44 kN (Compression)).\n"
+    "   - FOR TRUSS PROBLEMS: You MUST solve for and list the forces in ALL members of the truss (continue through all joints until every single member force is calculated). Every final member force answer MUST explicitly state whether it is in **Tension** or **Compression** (e.g., Fab = -4041.45 lb (Compression)).\n"
 )
 
 def post_with_retry(url, json_payload, retries=3, backoff=2):
@@ -116,21 +116,16 @@ def fix_malformed_numbers(text):
         if len(parts) > 2:
             integer_part = parts[0]
             decimal_part = parts[1] if len(parts[1]) > 0 else "00"
-            # Format cleanly to 2 decimal places
             return f"{integer_part}.{decimal_part[:2].ljust(2, '0')}"
         return full_str
     
-    # Matches numbers containing 2 or more decimal points
     return re.sub(r'-?\b\d+(?:\.\d+){2,}\b', sanitize_match, text)
 
 def clean_for_display(text):
     if not text:
         return "No text returned"
     
-    # Apply the aggressive multi-dot number fix first
     text = fix_malformed_numbers(text)
-    
-    # Extra fallback patterns for legacy edge cases
     text = re.sub(r'-100\.0(?:\.\d+)+', '-100.00', text)
     text = re.sub(r'(-?\d+)\.(\d+)\.(\d+)', r'\1.\2', text)
     
