@@ -27,7 +27,7 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "   - When tracing clockwise, entering a negative terminal is -V; entering a positive terminal is +V.\n"
     "2. STRICT FORMATTING & STRUCTURE:\n"
     "   - Follow this exact 3-section structure with NO conversational filler, intro/outro remarks, or yapping:\n"
-    "     1st Givens (List all supports, loads, dimensions, and angles cleanly using variable assignments like A = Pin, E = Roller, B = 1000.00 lb, AC = 10.00 ft, Theta = 60.00 deg)\n"
+    "     1st Givens (List ONLY the raw loads, support types, spans, and angles explicitly shown in the problem diagram using clean variable assignments, e.g., Pin = A, Roller = E, Load_B = 1000.00 lb, Span_AC = 10.00 ft, Theta = 60.00 deg. DO NOT include calculated reactions or coordinates here.)\n"
     "     2nd Step-by-Step Formula Solution (Write out full, expanded steps: moment equations, substitution, distribution, combining terms, solving for variables explicitly through all joints).\n"
     "     3rd Final Answers\n"
     "   - DO NOT use LaTeX formatting like \\cdot, \\text{{}}, \\Omega, or backslashes. Write multiplication explicitly with '*' or spaces, and units plainly (e.g., 20.00 V, 8.00 ohms, kN, A, W).\n"
