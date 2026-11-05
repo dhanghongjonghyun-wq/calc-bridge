@@ -15,8 +15,8 @@ latest_chat_history = "Ready. Send an image to Telegram!"
 # Persistent session for faster API requests
 session = requests.Session()
 
-# Model Endpoint updated to gemini-3.8-flash
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={GEMINI_API_KEY}"
+# Model Endpoint updated to gemini-flash-latest
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
 TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 ENGINEERING_PROMPT_TEMPLATE = (
@@ -87,7 +87,7 @@ def evaluate_math_expression(expr):
             if not name.startswith('_'):
                 safe_dict[name] = getattr(math, name)
         
-        result = eval(cleaned, {"__builtins__": {}}, safe_dict)
+        result = eval(cleaned, {"__builtins__" : {}}, safe_dict)
         if isinstance(result, float):
             result = round(result, 2)
             if result.is_integer():
@@ -112,18 +112,15 @@ def clean_for_display(text):
     if not text:
         return "No text returned"
     
-    # Automatically catch and fix malformed multi-dot decimal glitches
     text = re.sub(r'-100\.0(?:\.\d+)+', '-100.00', text)
     text = re.sub(r'(-?\d+)\.(\d+)\.(\d+)', r'\1.\2', text)
     
-    # Aggressively strip out LaTeX artifact wrappers (\cdot, \text{}, \Omega, etc.)
     text = text.replace(r"\cdot", "*")
     text = re.sub(r'\\text\{([^}]+)\}', r'\1', text)
     text = re.sub(r'\\Omega\b', 'ohms', text, flags=re.IGNORECASE)
     text = re.sub(r'\\omega\b', 'ohms', text, flags=re.IGNORECASE)
     text = re.sub(r'\\([a-zA-Z]+)', r'\1', text)
     
-    # Clean standard LaTeX math formatting
     text = text.replace(r"\times", "*").replace(r"\div", "/")
     text = text.replace(r"\approx", "~").replace(r"\cos", "cos")
     text = text.replace(r"\sin", "sin").replace(r"\tan", "tan")
@@ -142,12 +139,12 @@ def clean_for_display(text):
     cleaned_lines = [re.sub(r'[ \t]+', ' ', line).strip() for line in cleaned_lines]
     return "\n".join([line for line in cleaned_lines if line])
 
-# 1. Main ESP32 Endpoint (Handles direct text math expressions)
-@app.route("/", methods=["GET", "POST"])
+# 1. Main ESP32 Endpoint (Handles direct text math expressions, GET, POST, and HEAD health checks)
+@app.route("/", methods=["GET", "POST", "HEAD"])
 def bridge_handler():
     global latest_chat_history
     
-    if request.method == "GET":
+    if request.method in ["GET", "HEAD"]:
         return latest_chat_history, 200
 
     if request.method == "POST":
