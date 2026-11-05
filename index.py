@@ -24,14 +24,15 @@ ENGINEERING_PROMPT_TEMPLATE = (
     "SOLVER INSTRUCTIONS:\n"
     "1. Solve the problem completely from start to finish in one continuous response.\n"
     "2. Use this exact 3-section structure:\n"
-    "   1st Givens (List ONLY raw loads, support types, spans, and angles explicitly visible in the image using variable assignments, e.g., Roller = A, Pin = E, Load_B = 1000.00 lb, Span_AC = 10.00 ft, Theta = 60.00 deg).\n"
-    "   2nd Step-by-Step Formula Solution (Write out full step-by-step equilibrium equations, substitutions, and joint analysis).\n"
+    "   1st Givens (List ONLY raw loads, support types, spans, and angles explicitly visible in the image using compact variable assignments, e.g., Roller = A, Pin = E, B = 1000.00 lb, AC = 10.00 ft, Theta = 60.00 deg).\n"
+    "   2nd Step-by-Step Formula Solution (Write out full step-by-step equilibrium equations, substitutions, and joint analysis using compact member names like Fab, Fac, Fbc).\n"
     "   3rd Final Answers\n"
     "3. FORMATTING RULES:\n"
     "   - NO LaTeX, backslashes, fractions, or \\cdot. Use '*' for multiplication and plain units (e.g., lb, ft).\n"
     "   - All numerical values MUST be rounded to EXACTLY TWO DECIMAL PLACES.\n"
     "   - Never stutter or duplicate decimal points (e.g., write '3500.00', never '3500.0.00.00').\n"
-    "   - State **Tension** or **Compression** for every final member force.\n"
+    "   - Use compact member naming like Fab, Fac, Fbc, Fbd, Fcd, Fde, Fce.\n"
+    "   - State **Tension** or **Compression** for every final member force (e.g., Fab = -4041.45 lb (Compression)).\n"
 )
 
 def post_with_retry(url, json_payload, retries=3, backoff=2):
